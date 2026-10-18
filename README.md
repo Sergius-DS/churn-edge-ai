@@ -9,6 +9,7 @@
 ![Parity](https://img.shields.io/badge/parity_python%E2%86%94wasm-max_diff_7.3e--9-brightgreen)
 ![Inference](https://img.shields.io/badge/inference-100%25_client--side-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Sergius-DS/churn-edge-ai?quickstart=1)
 
 > **Churn Edge AI** entrena un modelo XGBoost en Python, lo exporta como JSON optimizado para edge y ejecuta la inferencia completa en **Rust/WebAssembly** dentro del navegador.  
 > El cliente no envía datos sensibles a un servidor: la predicción ocurre localmente, con paridad numérica certificada respecto a Python.
