@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-parity:
+    name: Python parity checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pandas xgboost joblib scikit-learn imbalanced-learn
+
+      - name: Parity Python ↔ JSON
+        run: python scripts/validate_parity.py
+
+      - name: Parity RAW → proba
+        run: python scripts/validate_parity_raw.py
+
+  rust-wasm:
+    name: Rust tests + WASM build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Cargo tests
+        run: cd edge/churn-wasm && cargo test -- --nocapture
+
+      - name: RAW parity test
+        run: cd edge/churn-wasm && cargo test --test parity_raw -- --nocapture
+
+      - name: Build WASM
+        run: cd edge/churn-wasm && wasm-pack build --target web --release
