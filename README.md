@@ -854,7 +854,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install numpy pandas xgboost joblib
+          pip install numpy pandas xgboost joblib scikit-learn imbalanced-learn
 
       - name: Parity Python ↔ JSON
         run: python scripts/validate_parity.py
