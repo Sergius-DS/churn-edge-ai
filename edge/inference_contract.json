@@ -1,0 +1,329 @@
+{
+  "version": 1,
+  "created_at": "2026-10-03T15:44:42.638655+00:00",
+  "target": "Attrition_Flag",
+  "best_threshold": 0.38,
+  "seed": 44,
+  "feature_order": [
+    "Customer_Age",
+    "Dependent_count",
+    "Months_on_book",
+    "Total_Relationship_Count",
+    "Months_Inactive_12_mon",
+    "Contacts_Count_12_mon",
+    "Credit_Limit",
+    "Total_Revolving_Bal",
+    "Avg_Open_To_Buy",
+    "Total_Amt_Chng_Q4_Q1",
+    "Total_Trans_Amt",
+    "Total_Trans_Ct",
+    "Total_Ct_Chng_Q4_Q1",
+    "Avg_Utilization_Ratio",
+    "Income_Category_ordinal",
+    "Income_Category_is_unknown",
+    "Education_Level_ordinal",
+    "Education_Level_is_unknown",
+    "Gender_F",
+    "Gender_M",
+    "Marital_Status_Divorced",
+    "Marital_Status_Married",
+    "Marital_Status_Single",
+    "Marital_Status_Unknown",
+    "Card_Category_Blue",
+    "Card_Category_Gold",
+    "Card_Category_Platinum",
+    "Card_Category_Silver"
+  ],
+  "raw_input": {
+    "numeric_columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio"
+    ],
+    "categorical_columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ]
+  },
+  "numeric_imputer": {
+    "strategy": "mean",
+    "columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio"
+    ],
+    "values": [
+      46.26984322923096,
+      2.359461794840143,
+      35.864090852981114,
+      3.8006418960622144,
+      2.3483520553018145,
+      2.455252437970621,
+      8654.48229848167,
+      1157.8801382545364,
+      7496.602160227133,
+      683.1016954415601,
+      4409.300333292186,
+      64.92358968028638,
+      588.2137459567057,
+      245.85448092828045
+    ]
+  },
+  "categorical_imputer": {
+    "strategy": "most_frequent",
+    "columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ],
+    "values": [
+      "F",
+      "Graduate",
+      "Married",
+      "Less than $40K",
+      "Blue"
+    ]
+  },
+  "ordinal": {
+    "income_column": "Income_Category",
+    "education_column": "Education_Level",
+    "income_mapping": {
+      "Less than $40K": 0,
+      "$40K - $60K": 1,
+      "$60K - $80K": 2,
+      "$80K - $120K": 3,
+      "$120K +": 4,
+      "Unknown": null
+    },
+    "education_mapping": {
+      "Uneducated": 0,
+      "High School": 1,
+      "College": 2,
+      "Graduate": 3,
+      "Post-Graduate": 4,
+      "Doctorate": 5,
+      "Unknown": null
+    },
+    "income_ordinal_feature": "Income_Category_ordinal",
+    "education_ordinal_feature": "Education_Level_ordinal",
+    "income_unknown_feature": "Income_Category_is_unknown",
+    "education_unknown_feature": "Education_Level_is_unknown",
+    "income_median": 1.0,
+    "education_median": 2.0
+  },
+  "onehot": {
+    "columns": [
+      "Gender",
+      "Marital_Status",
+      "Card_Category"
+    ],
+    "categories": {
+      "Gender": [
+        "F",
+        "M"
+      ],
+      "Marital_Status": [
+        "Divorced",
+        "Married",
+        "Single",
+        "Unknown"
+      ],
+      "Card_Category": [
+        "Blue",
+        "Gold",
+        "Platinum",
+        "Silver"
+      ]
+    },
+    "encoded_feature_names": [
+      "Gender_F",
+      "Gender_M",
+      "Marital_Status_Divorced",
+      "Marital_Status_Married",
+      "Marital_Status_Single",
+      "Marital_Status_Unknown",
+      "Card_Category_Blue",
+      "Card_Category_Gold",
+      "Card_Category_Platinum",
+      "Card_Category_Silver"
+    ],
+    "category_feature_pairs": [
+      {
+        "column": "Gender",
+        "category": "F",
+        "feature": "Gender_F"
+      },
+      {
+        "column": "Gender",
+        "category": "M",
+        "feature": "Gender_M"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Divorced",
+        "feature": "Marital_Status_Divorced"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Married",
+        "feature": "Marital_Status_Married"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Single",
+        "feature": "Marital_Status_Single"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Unknown",
+        "feature": "Marital_Status_Unknown"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Blue",
+        "feature": "Card_Category_Blue"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Gold",
+        "feature": "Card_Category_Gold"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Platinum",
+        "feature": "Card_Category_Platinum"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Silver",
+        "feature": "Card_Category_Silver"
+      }
+    ],
+    "handle_unknown": "ignore"
+  },
+  "scaler": {
+    "method": "standard",
+    "columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio",
+      "Income_Category_ordinal",
+      "Income_Category_is_unknown",
+      "Education_Level_ordinal",
+      "Education_Level_is_unknown",
+      "Gender_F",
+      "Gender_M",
+      "Marital_Status_Divorced",
+      "Marital_Status_Married",
+      "Marital_Status_Single",
+      "Marital_Status_Unknown",
+      "Card_Category_Blue",
+      "Card_Category_Gold",
+      "Card_Category_Platinum",
+      "Card_Category_Silver"
+    ],
+    "mean": [
+      46.322082813369775,
+      2.391062383305873,
+      35.93644583713538,
+      3.579065057126248,
+      2.4986928353178692,
+      2.6691610322547255,
+      8429.275752502937,
+      945.1950722341695,
+      7484.0806802687675,
+      664.4001045056278,
+      3871.8075314894327,
+      56.846574098162975,
+      525.5676338788525,
+      204.92658237951903,
+      1.2875978591253052,
+      0.07412854831592881,
+      2.0516159599414356,
+      0.10155905280188263,
+      0.5512421865718714,
+      0.44875781342812865,
+      0.07658522430629507,
+      0.4548770143783156,
+      0.3926494002303073,
+      0.07588836108508201,
+      0.9343269972213011,
+      0.012077333269963672,
+      0.0022872639023578203,
+      0.05130840560637742
+    ],
+    "scale": [
+      7.322223729089061,
+      1.2017910228212194,
+      7.366750157355337,
+      1.4901836642832855,
+      0.9267701972349859,
+      1.0632503244291014,
+      9137.789847892787,
+      890.603712655936,
+      9164.79641919794,
+      283.57772577982433,
+      3053.1569985369483,
+      22.2500396103212,
+      309.8660701905869,
+      270.8702331280961,
+      1.2403437646518853,
+      0.26197997373940973,
+      1.216872176286541,
+      0.3020675613101596,
+      0.47259342370425783,
+      0.4725934237042578,
+      0.24736900722903885,
+      0.46492320989127767,
+      0.45527388386066653,
+      0.24563317755734318,
+      0.23764135474356365,
+      0.10234548137616285,
+      0.04299526132214159,
+      0.21017635772070206
+    ]
+  },
+  "xgboost": {
+    "base_score_param": "[5E-1]",
+    "base_raw_hint": 0.0,
+    "note": "Validar base_score con parity_sample.json."
+  }
+}

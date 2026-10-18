@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "model_type": "edge_lite",
+  "created_at": "2026-10-03T15:44:49.170698+00:00",
+  "target": "Attrition_Flag",
+  "best_threshold": 0.38,
+  "seed": 44,
+  "feature_order": [
+    "Total_Trans_Ct",
+    "Total_Revolving_Bal",
+    "Total_Ct_Chng_Q4_Q1",
+    "Months_Inactive_12_mon",
+    "Contacts_Count_12_mon",
+    "Total_Trans_Amt",
+    "Total_Relationship_Count",
+    "Avg_Utilization_Ratio",
+    "Total_Amt_Chng_Q4_Q1",
+    "Dependent_count",
+    "Gender_F",
+    "Marital_Status_Single"
+  ],
+  "n_features": 12,
+  "raw_input": {
+    "numeric_columns": [
+      "Dependent_count",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Total_Revolving_Bal",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio"
+    ],
+    "categorical_columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ]
+  },
+  "numeric_imputer": {
+    "strategy": "mean",
+    "columns": [
+      "Dependent_count",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Total_Revolving_Bal",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio"
+    ],
+    "values": [
+      2.359461794840143,
+      3.8006418960622144,
+      2.3483520553018145,
+      2.455252437970621,
+      1157.8801382545364,
+      683.1016954415601,
+      4409.300333292186,
+      64.92358968028638,
+      588.2137459567057,
+      245.85448092828045
+    ]
+  },
+  "categorical_imputer": {
+    "strategy": "most_frequent",
+    "columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ],
+    "values": [
+      "F",
+      "Graduate",
+      "Married",
+      "Less than $40K",
+      "Blue"
+    ]
+  },
+  "ordinal": {
+    "income_column": "Income_Category",
+    "education_column": "Education_Level",
+    "income_mapping": {
+      "Less than $40K": 0,
+      "$40K - $60K": 1,
+      "$60K - $80K": 2,
+      "$80K - $120K": 3,
+      "$120K +": 4,
+      "Unknown": null
+    },
+    "education_mapping": {
+      "Uneducated": 0,
+      "High School": 1,
+      "College": 2,
+      "Graduate": 3,
+      "Post-Graduate": 4,
+      "Doctorate": 5,
+      "Unknown": null
+    },
+    "income_ordinal_feature": "Income_Category_ordinal",
+    "education_ordinal_feature": "Education_Level_ordinal",
+    "income_unknown_feature": "Income_Category_is_unknown",
+    "education_unknown_feature": "Education_Level_is_unknown",
+    "income_median": 1.0,
+    "education_median": 2.0
+  },
+  "onehot": {
+    "columns": [
+      "Gender",
+      "Marital_Status"
+    ],
+    "categories": {
+      "Gender": [
+        "F",
+        "M"
+      ],
+      "Marital_Status": [
+        "Divorced",
+        "Married",
+        "Single",
+        "Unknown"
+      ]
+    },
+    "encoded_feature_names": [
+      "Gender_F",
+      "Marital_Status_Single"
+    ],
+    "category_feature_pairs": [
+      {
+        "column": "Gender",
+        "category": "F",
+        "feature": "Gender_F"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Single",
+        "feature": "Marital_Status_Single"
+      }
+    ],
+    "handle_unknown": "ignore"
+  },
+  "scaler": {
+    "method": "standard",
+    "columns": [
+      "Total_Trans_Ct",
+      "Total_Revolving_Bal",
+      "Total_Ct_Chng_Q4_Q1",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Total_Trans_Amt",
+      "Total_Relationship_Count",
+      "Avg_Utilization_Ratio",
+      "Total_Amt_Chng_Q4_Q1",
+      "Dependent_count",
+      "Gender_F",
+      "Marital_Status_Single"
+    ],
+    "mean": [
+      56.846574098162975,
+      945.1950722341695,
+      525.5676338788525,
+      2.4986928353178692,
+      2.6691610322547255,
+      3871.8075314894327,
+      3.579065057126248,
+      204.92658237951903,
+      664.4001045056278,
+      2.391062383305873,
+      0.5512421865718714,
+      0.3926494002303073
+    ],
+    "scale": [
+      22.2500396103212,
+      890.603712655936,
+      309.8660701905869,
+      0.9267701972349859,
+      1.0632503244291014,
+      3053.1569985369483,
+      1.4901836642832855,
+      270.8702331280961,
+      283.57772577982433,
+      1.2017910228212194,
+      0.47259342370425783,
+      0.45527388386066653
+    ]
+  },
+  "xgboost": {
+    "base_score_param": "[5E-1]",
+    "base_raw_hint": 0.0,
+    "note": "Validar base_score con parity_sample_edge.json."
+  }
+}

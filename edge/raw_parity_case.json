@@ -1,0 +1,26 @@
+{
+  "description": "Golden case RAW→proba generado por Python. Rust debe replicarlo.",
+  "raw": {
+    "Customer_Age": 45,
+    "Gender": "F",
+    "Dependent_count": 3,
+    "Education_Level": "Graduate",
+    "Marital_Status": "Married",
+    "Income_Category": "$60K - $80K",
+    "Card_Category": "Blue",
+    "Months_on_book": 39,
+    "Total_Relationship_Count": 5,
+    "Months_Inactive_12_mon": 2,
+    "Contacts_Count_12_mon": 3,
+    "Credit_Limit": 12691.0,
+    "Total_Revolving_Bal": 777,
+    "Avg_Open_To_Buy": 11914.0,
+    "Total_Amt_Chng_Q4_Q1": 0.8,
+    "Total_Trans_Amt": 3500,
+    "Total_Trans_Ct": 45,
+    "Total_Ct_Chng_Q4_Q1": 0.69,
+    "Avg_Utilization_Ratio": 0.22
+  },
+  "expected_proba": 0.5966578125953674,
+  "expected_proba_pct": 59.66578125953674
+}

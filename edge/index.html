@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🪶 Churn Edge AI — WASM Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            margin-bottom: 5px;
+            font-size: 1.8em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 20px;
+        }
+        #status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: #1e293b;
+            font-weight: bold;
+        }
+        #parity {
+            text-align: center;
+            padding: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.8em;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #1e293b;
+            color: #e2e8f0;
+            font-size: 0.95em;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        #predictBtn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #predictBtn:hover { background: #2563eb; }
+        #predictBtn:disabled { background: #475569; cursor: not-allowed; }
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #1e293b;
+            border-radius: 12px;
+            min-height: 100px;
+        }
+        .tech-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #334155;
+            border-radius: 4px;
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🪶 Churn Edge AI</h1>
+        <p class="subtitle">
+            Inferencia XGBoost en el navegador
+            <span class="tech-badge">Rust</span>
+            <span class="tech-badge">WASM</span>
+            <span class="tech-badge">12 features</span>
+            <span class="tech-badge">228 KB</span>
+        </p>
+
+        <div id="status">🟡 Cargando motor WASM...</div>
+        <div id="parity"></div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Customer_Age</label>
+                <input type="number" id="Customer_Age" value="45">
+            </div>
+            <div class="form-group">
+                <label>Gender</label>
+                <select id="Gender">
+                    <option value="F">F</option>
+                    <option value="M">M</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Dependent_count</label>
+                <input type="number" id="Dependent_count" value="3">
+            </div>
+            <div class="form-group">
+                <label>Education_Level</label>
+                <select id="Education_Level">
+                    <option value="Graduate" selected>Graduate</option>
+                    <option value="High School">High School</option>
+                    <option value="College">College</option>
+                    <option value="Uneducated">Uneducated</option>
+                    <option value="Post-Graduate">Post-Graduate</option>
+                    <option value="Doctorate">Doctorate</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Marital_Status</label>
+                <select id="Marital_Status">
+                    <option value="Married" selected>Married</option>
+                    <option value="Single">Single</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Income_Category</label>
+                <select id="Income_Category">
+                    <option value="$60K - $80K" selected>$60K - $80K</option>
+                    <option value="Less than $40K">Less than $40K</option>
+                    <option value="$40K - $60K">$40K - $60K</option>
+                    <option value="$80K - $120K">$80K - $120K</option>
+                    <option value="$120K +">$120K +</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Card_Category</label>
+                <select id="Card_Category">
+                    <option value="Blue" selected>Blue</option>
+                    <option value="Silver">Silver</option>
+                    <option value="Gold">Gold</option>
+                    <option value="Platinum">Platinum</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Months_on_book</label>
+                <input type="number" id="Months_on_book" value="39">
+            </div>
+            <div class="form-group">
+                <label>Total_Relationship_Count</label>
+                <input type="number" id="Total_Relationship_Count" value="5">
+            </div>
+            <div class="form-group">
+                <label>Months_Inactive_12_mon</label>
+                <input type="number" id="Months_Inactive_12_mon" value="2">
+            </div>
+            <div class="form-group">
+                <label>Contacts_Count_12_mon</label>
+                <input type="number" id="Contacts_Count_12_mon" value="3">
+            </div>
+            <div class="form-group">
+                <label>Credit_Limit</label>
+                <input type="number" id="Credit_Limit" value="12691">
+            </div>
+            <div class="form-group">
+                <label>Total_Revolving_Bal</label>
+                <input type="number" id="Total_Revolving_Bal" value="777">
+            </div>
+            <div class="form-group">
+                <label>Avg_Open_To_Buy</label>
+                <input type="number" id="Avg_Open_To_Buy" value="11914">
+            </div>
+            <div class="form-group">
+                <label>Total_Amt_Chng_Q4_Q1</label>
+                <input type="number" id="Total_Amt_Chng_Q4_Q1" value="0.75" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Total_Trans_Amt</label>
+                <input type="number" id="Total_Trans_Amt" value="3500">
+            </div>
+            <div class="form-group">
+                <label>Total_Trans_Ct</label>
+                <input type="number" id="Total_Trans_Ct" value="45">
+            </div>
+            <div class="form-group">
+                <label>Total_Ct_Chng_Q4_Q1</label>
+                <input type="number" id="Total_Ct_Chng_Q4_Q1" value="0.61" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Avg_Utilization_Ratio</label>
+                <input type="number" id="Avg_Utilization_Ratio" value="0.22" step="0.01">
+            </div>
+        </div>
+
+        <button id="predictBtn">🔮 Predecir Churn</button>
+
+        <div id="result">
+            <div style="text-align: center; color: #64748b; padding: 20px;">
+                Ingresa los datos del cliente y haz clic en "Predecir"
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="demo.js"></script>
+</body>
+</html>

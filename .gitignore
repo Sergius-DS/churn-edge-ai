@@ -1,0 +1,56 @@
+# =========================================
+# ENTORNOS VIRTUALES Y GESTORES
+# =========================================
+.venv/
+venv/
+env/
+uv.lock
+
+# =========================================
+# ARTEFACTOS DE BUILD (PYTHON)
+# =========================================
+churn_edge_ai.egg-info/
+*.egg-info/
+dist/
+build/
+*.egg
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# =========================================
+# RUST Y WASM
+# =========================================
+target/
+pkg/
+**/*.rs.bk
+# Cargo.lock  # (Opcional: descomenta si quieres ignorarlo)
+
+# =========================================
+# SCRIPTS AUXILIARES
+# =========================================
+crear_estructura_churn_edge_ai.py
+
+# =========================================
+# IDEs Y SISTEMA OPERATIVO
+# =========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =========================================
+# DATOS (¡ATENCIÓN!)
+# =========================================
+# El CSV de Kaggle pesa ~2MB, por lo que puedes subirlo sin problemas.
+# GitHub bloquea archivos individuales mayores a 100MB.
+# Si en el futuro usas datasets gigantes, descomenta la siguiente línea:
+# data/raw/*.csv

@@ -1,0 +1,25 @@
+[package]
+name = "churn-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "Motor de inferencia XGBoost para Churn Edge AI"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+opt-level = "s"       # optimizar tamaño
+lto = true            # link-time optimization
+codegen-units = 1     # mejor optimización
+strip = true          # eliminar símbolos
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
