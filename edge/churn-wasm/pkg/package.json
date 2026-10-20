@@ -1,0 +1,16 @@
+{
+  "name": "churn-wasm",
+  "type": "module",
+  "description": "Motor de inferencia XGBoost para Churn Edge AI",
+  "version": "0.1.0",
+  "files": [
+    "churn_wasm_bg.wasm",
+    "churn_wasm.js",
+    "churn_wasm.d.ts"
+  ],
+  "main": "churn_wasm.js",
+  "types": "churn_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
