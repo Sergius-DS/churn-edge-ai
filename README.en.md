@@ -935,20 +935,40 @@ To take this system to production, the following is recommended:
   Or clear the cache.
 ---
 
-## 🌱 Roadmap
+## 🗺️ Project Evolution: From Classic Churn to a Banking IoT SDK
 
-- [ ] Interactive frontend with React/Svelte.
-- [ ] Sliders for what-if analysis.
-- [ ] Real-time probability graph.
-- [ ] Offline mode with Service Worker.
-- [ ] Publish WASM package to npm.
-- [ ] Integration with MLflow/DVC.
-- [ ] Approximate local explainability.
-- [ ] Drift monitoring dashboard.
-- [ ] Benchmarking on real mobile devices.
-- [ ] Support for multiple edge models.
-- [ ] Additional ONNX export for comparison.
-- [ ] Native Rust CLI for serverless.
+This repository documents the development of a deterministic inference engine at the Edge. What began as a traditional banking churn model (Milestone 1), is now evolving into a comprehensive IoT SDK with cryptographic privacy contracts for the financial industry.
+
+### 🏁 Milestone 1: The Deterministic Engine (Completed ✅)
+The physical and mathematical foundation of the SDK is now fully operational and certified.
+- [x] XGBoost training with a strict anti-leakage pipeline.
+- [x] Edge optimization (72.1% model size reduction, 12 features).
+- [x] Inference engine built in Rust / WebAssembly.
+- [x] Mathematical parity certification (Python ↔ JSON ↔ WASM) with a maximum deviation of `7.31e-09`.
+- [x] 100% client-side inference (Zero-Trust / 0 bytes sent to the server).
+
+### 🌱 Milestone 2: IoT Telemetry and Privacy Contracts (In Progress 🚧)
+- [ ] Synthetic IoT data generator (app usage, POS latency, NFC friction).
+- [ ] Hybrid model training (traditional features + IoT).
+- [ ] Inference contract JSON schema (Privacy firewall).
+
+### 🛡️ Milestone 3: Secure Rust Core (Planned 📋)
+- [ ] Artifact integrity verification (SHA-256 and digital signatures).
+- [ ] Strict payload validation (rejection of forbidden fields such as CVV or GPS).
+- [ ] Cross-platform compilation (WASM, Android `.so`, iOS `.a`).
+- [ ] On-device performance benchmarking (battery, CPU, latency).
+
+### 🔌 Milestone 4: B2B Ecosystem Integration (Planned 📋)
+- [ ] `Mock Bank API` (FastAPI: consent and feature minimization).
+- [ ] Web SDK (NPM + Web Workers).
+- [ ] Mobile wrappers (Kotlin/JNI and Swift/C-Bridge).
+- [ ] Offline-first inference mode (prioritizing offline execution).
+
+### 💼 Milestone 5: Banking UX and Business Logic (Planned 📋)
+- [ ] User interface (UI) for the banking test app (explicit consent management).
+- [ ] Business decision engine (Probability -> Retention campaigns).
+- [ ] Privacy-preserving observability dashboard.
+
 ---
 
 ## 📚 Tech Stack

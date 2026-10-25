@@ -1071,20 +1071,39 @@ o limpiar caché.
 
 ---
 
-## 🌱 Roadmap
+## 🗺️ Evolución del Proyecto: De Churn Clásico a SDK Bancario IoT
 
-- [ ] Frontend interactivo con React/Svelte.
-- [ ] Sliders para análisis what-if.
-- [ ] Gráfica de probabilidad en tiempo real.
-- [ ] Modo offline con Service Worker.
-- [ ] Publicación del paquete WASM en npm.
-- [ ] Integración con MLflow/DVC.
-- [ ] Explicabilidad local aproximada.
-- [ ] Dashboard de monitoreo de drift.
-- [ ] Benchmark en dispositivos móviles reales.
-- [ ] Soporte para múltiples modelos edge.
-- [ ] Exportación adicional a ONNX como comparación.
-- [ ] CLI nativo Rust para serverless.
+Este repositorio documenta la construcción de un motor de inferencia determinista en el Edge. Lo que comenzó como un modelo de churn bancario tradicional (Hito 1), está evolucionando hacia un SDK completo de IoT con contratos de privacidad criptográficos para la industria financiera.
+
+### 🏁 Hito 1: El Motor Determinista (Completado ✅)
+La base física y matemática del SDK ya está operativa y certificada.
+- [x] Entrenamiento de XGBoost con pipeline estricto anti-leakage.
+- [x] Optimización Edge (Reducción de peso en 72.1%, 12 features).
+- [x] Motor de inferencia en Rust / WebAssembly.
+- [x] Certificación de paridad matemática (Python ↔ JSON ↔ WASM) con diferencia máxima de `7.31e-09`.
+- [x] Inferencia 100% client-side (Zero-Trust / 0 bytes enviados al servidor).
+
+### 🌱 Hito 2: Telemetría IoT y Contratos de Privacidad (En Progreso 🚧)
+- [ ] Generador de datos sintéticos de IoT (Uso de apps, latencia en POS, fricción NFC).
+- [ ] Entrenamiento de modelo híbrido (Características tradicionales + IoT).
+- [ ] Esquema JSON del contrato de inferencia (Cortafuegos de privacidad).
+
+### 🛡️ Hito 3: Núcleo Seguro en Rust (Planificado 📋)
+- [ ] Verificación de integridad de artefactos (SHA-256 y firma digital).
+- [ ] Validación estricta del payload (Rechazo de campos prohibidos como CVV o GPS).
+- [ ] Compilación multiplataforma (WASM, Android `.so`, iOS `.a`).
+- [ ] Evaluación de rendimiento (Benchmarking) en dispositivo (Batería, CPU, latencia).
+
+### 🔌 Hito 4: Integración en el Ecosistema B2B (Planificado 📋)
+- [ ] `Mock Bank API` (FastAPI: Consentimiento y características minimizadas).
+- [ ] SDK Web (NPM + Web Workers).
+- [ ] Envoltorios (Wrappers) móviles (Kotlin/JNI y Swift/C-Bridge).
+- [ ] Modo de inferencia *offline-first* (prioridad sin conexión).
+
+### 💼 Hito 5: UX Bancaria y Lógica de Negocio (Planificado 📋)
+- [ ] Interfaz de usuario (UI) para la aplicación de prueba bancaria (Gestión explícita del consentimiento).
+- [ ] Motor de decisiones de negocio (Probabilidad -> Campañas de fidelización).
+- [ ] Panel de control (Dashboard) de observabilidad con preservación de privacidad.
 
 ---
 
