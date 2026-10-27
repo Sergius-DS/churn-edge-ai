@@ -5,11 +5,14 @@ run_all.py
 Equivalente a `make all` para Windows.
 
 Ejecuta:
-1. scripts/train_model.py
-2. scripts/export_edge.py
-3. scripts/validate_parity.py
-4. scripts/train_edge_model.py
-5. scripts/export_edge_lite.py
+1. scripts/generate_synthetic_iot.py
+2. scripts/train_model.py
+3. scripts/export_edge.py
+4. scripts/validate_parity.py
+5. scripts/train_edge_model.py
+6. scripts/export_edge_lite.py
+7. scripts/train_edge_iot_model.py
+8. scripts/export_edge_iot.py
 """
 
 import subprocess
@@ -19,11 +22,21 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 SCRIPTS = [
+    # Fase IoT sintética
+    PROJECT_ROOT / "scripts" / "generate_synthetic_iot.py",
+
+    # Baseline
     PROJECT_ROOT / "scripts" / "train_model.py",
     PROJECT_ROOT / "scripts" / "export_edge.py",
     PROJECT_ROOT / "scripts" / "validate_parity.py",
+
+    # Edge actual
     PROJECT_ROOT / "scripts" / "train_edge_model.py",
     PROJECT_ROOT / "scripts" / "export_edge_lite.py",
+
+    # Edge IoT
+    PROJECT_ROOT / "scripts" / "train_edge_iot_model.py",
+    PROJECT_ROOT / "scripts" / "export_edge_iot.py",
 ]
 
 

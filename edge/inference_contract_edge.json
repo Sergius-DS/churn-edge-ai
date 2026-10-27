@@ -1,7 +1,7 @@
 {
   "version": 1,
   "model_type": "edge_lite",
-  "created_at": "2026-10-03T15:44:49.170698+00:00",
+  "created_at": "2026-10-25T18:41:24.974081+00:00",
   "target": "Attrition_Flag",
   "best_threshold": 0.38,
   "seed": 44,
@@ -114,8 +114,8 @@
   },
   "onehot": {
     "columns": [
-      "Gender",
-      "Marital_Status"
+      "Marital_Status",
+      "Gender"
     ],
     "categories": {
       "Gender": [

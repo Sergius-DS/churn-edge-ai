@@ -14,9 +14,6 @@ from sklearn.metrics import (
     roc_auc_score,
     classification_report,
     confusion_matrix,
-    precision_score,
-    recall_score,
-    f1_score,
     fbeta_score,
 )
 from sklearn.model_selection import train_test_split
@@ -27,35 +24,46 @@ from src.config import (
     SEED,
     TARGET,
     XGB_PARAMS,
+    XGB_EDGE_PARAMS,
     CV_NUM_BOOST_ROUND,
     CV_NFOLD,
     CV_EARLY_STOPPING_ROUNDS,
+    EDGE_CV_NUM_BOOST_ROUND,
+    EDGE_EARLY_STOPPING_ROUNDS,
     BEST_THRESHOLD,
     ARTIFACTS_DIR,
+    INCOME_ORDER,
+    EDUCATION_ORDER,
 )
 
 
 def train_with_cv(
     X_train_scaled: pd.DataFrame,
     y_train_smote: pd.Series,
+    params: dict = None,
+    num_boost_round: int = None,
+    early_stopping_rounds: int = None,
 ) -> tuple[xgb.Booster, int, float]:
     """
     Entrena XGBoost con cross-validation.
-    Retorna el modelo final, la mejor ronda y el mejor AUC en CV.
+    Permite usar XGB_PARAMS (baseline) o XGB_EDGE_PARAMS (edge/iot).
     """
+    params = params or XGB_PARAMS
+    num_boost_round = num_boost_round or CV_NUM_BOOST_ROUND
+    early_stopping_rounds = early_stopping_rounds or CV_EARLY_STOPPING_ROUNDS
+
     dtrain = xgb.DMatrix(X_train_scaled, label=y_train_smote)
 
     cv_results = xgb.cv(
         dtrain=dtrain,
-        params=XGB_PARAMS,
-        num_boost_round=CV_NUM_BOOST_ROUND,
+        params=params,
+        num_boost_round=num_boost_round,
         nfold=CV_NFOLD,
-        early_stopping_rounds=CV_EARLY_STOPPING_ROUNDS,
+        early_stopping_rounds=early_stopping_rounds,
         seed=SEED,
         verbose_eval=50,
     )
 
-    # Encontrar la mejor ronda
     auc_mean_cols = [
         col for col in cv_results.columns
         if col.startswith("test") and "auc" in col and col.endswith("mean")
@@ -68,9 +76,8 @@ def train_with_cv(
     print(f"[train] Mejor ronda: {best_round}")
     print(f"[train] Mejor AUC en CV: {best_auc_cv:.6f}")
 
-    # Entrenar modelo final con la mejor ronda
     final_model = xgb.train(
-        params=XGB_PARAMS,
+        params=params,
         dtrain=dtrain,
         num_boost_round=best_round,
     )
@@ -116,41 +123,43 @@ def optimize_threshold(
     y_train: pd.Series,
     best_round: int,
     seed: int = SEED,
+    params: dict = None,
 ) -> float:
     """
-    Optimiza el threshold usando un split interno de train
-    (antes de SMOTE) para no hacer leakage sobre test.
+    Optimiza threshold usando split interno de train.
+    Usa X_train_ready antes de SMOTE para evitar leakage.
     """
-    # Split interno
+    params = params or XGB_PARAMS
+
     X_tr_inner, X_val_inner, y_tr_inner, y_val_inner = train_test_split(
-        X_train_ready, y_train,
+        X_train_ready,
+        y_train,
         test_size=0.20,
         stratify=y_train,
         random_state=seed,
     )
 
-    # SMOTE solo al sub-training
     smote_inner = SMOTE(random_state=seed)
-    X_tr_inner_sm, y_tr_inner_sm = smote_inner.fit_resample(X_tr_inner, y_tr_inner)
+    X_tr_inner_sm, y_tr_inner_sm = smote_inner.fit_resample(
+        X_tr_inner,
+        y_tr_inner,
+    )
 
-    # Escalar
     scaler_inner = StandardScaler()
     X_tr_inner_sc = scaler_inner.fit_transform(X_tr_inner_sm)
     X_val_inner_sc = scaler_inner.transform(X_val_inner)
 
-    # Entrenar modelo temporal
     dtr_inner = xgb.DMatrix(X_tr_inner_sc, label=y_tr_inner_sm)
+
     model_inner = xgb.train(
-        params=XGB_PARAMS,
+        params=params,
         dtrain=dtr_inner,
         num_boost_round=best_round,
     )
 
-    # Predecir en validación interna
     dval_inner = xgb.DMatrix(X_val_inner_sc)
     val_prob = model_inner.predict(dval_inner)
 
-    # Buscar mejor threshold con F2 (prioriza recall)
     thresholds = np.linspace(0.10, 0.90, 81)
     best_f2 = 0
     best_thr = 0.5
@@ -188,29 +197,35 @@ def save_artifacts(
     ordinal_imputer,
     threshold: float,
     seed: int = SEED,
+    feature_order: list = None,
+    artifact_dir: Path = ARTIFACTS_DIR,
 ) -> None:
-    """Guarda todos los artefactos del modelo."""
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    """
+    Guarda todos los artefactos del modelo.
+    artifact_dir permite guardar en carpetas separadas (baseline, edge, edge_iot).
+    """
+    artifact_dir = Path(artifact_dir)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    joblib.dump(model, ARTIFACTS_DIR / "xgb_model.joblib")
-    joblib.dump(scaler, ARTIFACTS_DIR / "scaler.joblib")
-    joblib.dump(encoder, ARTIFACTS_DIR / "onehot_encoder.joblib")
-    joblib.dump(num_imputer, ARTIFACTS_DIR / "num_imputer.joblib")
-    joblib.dump(cat_imputer, ARTIFACTS_DIR / "cat_imputer.joblib")
-    joblib.dump(ordinal_imputer, ARTIFACTS_DIR / "ordinal_imputer.joblib")
+    joblib.dump(model, artifact_dir / "xgb_model.joblib")
+    joblib.dump(scaler, artifact_dir / "scaler.joblib")
+    joblib.dump(encoder, artifact_dir / "onehot_encoder.joblib")
+    joblib.dump(num_imputer, artifact_dir / "num_imputer.joblib")
+    joblib.dump(cat_imputer, artifact_dir / "cat_imputer.joblib")
+    joblib.dump(ordinal_imputer, artifact_dir / "ordinal_imputer.joblib")
 
-    from src.config import INCOME_ORDER, EDUCATION_ORDER
     mappings = {
         "income_order": INCOME_ORDER,
         "education_order": EDUCATION_ORDER,
     }
-    joblib.dump(mappings, ARTIFACTS_DIR / "ordinal_mappings.joblib")
+    joblib.dump(mappings, artifact_dir / "ordinal_mappings.joblib")
 
     config = {
         "best_threshold": threshold,
         "seed": seed,
         "target_col": TARGET,
+        "feature_order": feature_order or [],
     }
-    joblib.dump(config, ARTIFACTS_DIR / "model_config.joblib")
+    joblib.dump(config, artifact_dir / "model_config.joblib")
 
-    print(f"[train] ✅ Artefactos guardados en {ARTIFACTS_DIR}")
+    print(f"[train] ✅ Artefactos guardados en {artifact_dir}")

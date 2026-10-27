@@ -17,11 +17,13 @@ from src.config import (
     TEST_SIZE,
     LEAKAGE_COLUMNS,
     NUMERIC_LIKE_COLUMNS,
+    SYNTHETIC_IOT_CSV,
+    IOT_FEATURES,
 )
 
 
 def load_raw_data(path: Path = DATA_PATH) -> pd.DataFrame:
-    """Carga el CSV原始 y verifica que existe."""
+    """Carga el CSV y verifica que existe."""
     assert path.exists(), f"No se encontró el archivo: {path}"
     df = pd.read_csv(path)
     print(f"[data_loading] Shape inicial: {df.shape}")
@@ -113,6 +115,27 @@ def convert_numeric_like(
     return X_train, X_test
 
 
+def convert_iot_numeric(
+    X_train: pd.DataFrame,
+    X_test: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Convierte explícitamente las features IoT a numéricas.
+    Esto previene errores si el CSV sintético guardó algún conteo como string.
+    """
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+
+    for col in IOT_FEATURES:
+        if col in X_train.columns:
+            X_train[col] = pd.to_numeric(X_train[col], errors="coerce")
+
+        if col in X_test.columns:
+            X_test[col] = pd.to_numeric(X_test[col], errors="coerce")
+
+    return X_train, X_test
+
+
 def verify_no_leakage(X_train: pd.DataFrame) -> None:
     """Assert final: que no quedaron columnas con fuga."""
     bad_cols = [
@@ -123,16 +146,50 @@ def verify_no_leakage(X_train: pd.DataFrame) -> None:
     print("[data_loading] ✅ OK: no se detectan columnas con fuga aparente")
 
 
-def load_and_prepare() -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+def load_and_prepare(
+    path: Path = None,
+    with_iot: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
     """
     Pipeline completo de carga y preparación.
-    Retorna X_train, X_test, y_train, y_test listos para preprocessing.
+
+    Si with_iot=True:
+        carga data/processed/credit_card_churn_iot_synthetic.csv
+
+    Si with_iot=False:
+        carga data/raw/Credit_card_churn.csv
     """
-    df = load_raw_data()
+    if path is not None and with_iot:
+        raise ValueError("No uses path y with_iot=True al mismo tiempo.")
+
+    if path is None:
+        path = SYNTHETIC_IOT_CSV if with_iot else DATA_PATH
+
+    path = Path(path)
+
+    if with_iot and not path.exists():
+        raise FileNotFoundError(
+            f"No se encontró el dataset IoT: {path}. "
+            "Ejecuta primero: python scripts/generate_synthetic_iot.py"
+        )
+
+    df = load_raw_data(path)
     df_clean = drop_leakage_columns(df)
+
     X, y = encode_target(df_clean)
+
     X_train, X_test, y_train, y_test = split_data(X, y)
+
     X_train, X_test = convert_numeric_like(X_train, X_test)
+    X_train, X_test = convert_iot_numeric(X_train, X_test)
+
+    if with_iot:
+        missing_train = [c for c in IOT_FEATURES if c not in X_train.columns]
+        missing_test = [c for c in IOT_FEATURES if c not in X_test.columns]
+
+        assert not missing_train, f"Faltan IoT features en train: {missing_train}"
+        assert not missing_test, f"Faltan IoT features en test: {missing_test}"
+
     verify_no_leakage(X_train)
 
     # Assertions de consistencia

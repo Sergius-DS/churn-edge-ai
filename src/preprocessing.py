@@ -16,6 +16,7 @@ from src.config import (
     INCOME_ORDER,
     EDUCATION_ORDER,
     ORDINAL_SOURCE_COLUMNS,
+    IOT_FEATURE_BOUNDS,
 )
 
 
@@ -231,7 +232,28 @@ def apply_scaling(
     print("[preprocessing] ✅ Escalado terminado")
     return X_train_scaled, X_test_scaled, scaler
 
+# ═══════════════════════════════════════════════════════════
+#
+# ═══════════════════════════════════════════════════════════
+def apply_iot_bounds(
+    X_train: pd.DataFrame,
+    X_test: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Aplica límites razonables a las features IoT.
+    Esto simula una validación básica de contrato edge.
+    """
+    X_train = X_train.copy()
+    X_test = X_test.copy()
 
+    for col, (lower, upper) in IOT_FEATURE_BOUNDS.items():
+        if col in X_train.columns:
+            X_train[col] = X_train[col].clip(lower, upper)
+
+        if col in X_test.columns:
+            X_test[col] = X_test[col].clip(lower, upper)
+
+    return X_train, X_test
 # ═══════════════════════════════════════════════════════════
 # PIPELINE COMPLETO
 # ═══════════════════════════════════════════════════════════
@@ -244,8 +266,16 @@ def run_full_pipeline(
 ) -> dict:
     """
     Ejecuta todo el pipeline de preprocessing.
-    Retorna un diccionario con todos los artefactos necesarios.
+
+    Retorna artefactos y también:
+    - X_train_ready
+    - X_test_ready
+
+    Esto es necesario para optimize_threshold y feature selection.
     """
+    # 0. Validación de rangos IoT
+    X_train, X_test = apply_iot_bounds(X_train, X_test)
+
     # 1. Imputación
     X_train, X_test, num_imputer, cat_imputer = impute_data(X_train, X_test)
 
@@ -263,9 +293,12 @@ def run_full_pipeline(
     X_train_smote, y_train_smote = apply_smote(X_train_ready, y_train)
 
     # 5. Escalado
-    X_train_scaled, X_test_scaled, scaler = apply_scaling(X_train_smote, X_test_ready)
+    X_train_scaled, X_test_scaled, scaler = apply_scaling(
+        X_train_smote,
+        X_test_ready,
+    )
 
-    # Validaciones finales anti-leakage
+    # Validaciones finales
     assert X_test_scaled.shape == X_test_ready.shape, "X_test cambió de shape"
     assert y_test.shape[0] == X_test_scaled.shape[0], "y_test inconsistente"
     assert "Attrition_Flag" not in X_train_scaled.columns
@@ -278,7 +311,12 @@ def run_full_pipeline(
         "y_train_smote": y_train_smote,
         "y_test": y_test,
         "feature_order": list(X_train_scaled.columns),
-        # Artefactos para exportar
+
+        # Necesarios para threshold y selección de features
+        "X_train_ready": X_train_ready,
+        "X_test_ready": X_test_ready,
+
+        # Artefactos
         "num_imputer": num_imputer,
         "cat_imputer": cat_imputer,
         "ordinal_imputer": ordinal_imputer,
