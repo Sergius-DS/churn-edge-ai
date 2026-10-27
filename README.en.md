@@ -584,77 +584,64 @@ Open: `http://localhost:8000`
 
 ```text
 churn-edge-ai/
- │
- ├── .gitignore
- ├── pyproject.toml
- ├── README.md
- ├── README.en.md
- ├── run_all.py
- ├── Makefile
- │
- ├── data/
- │   └── raw/
- │       └── Credit_card_churn.csv
- │
- ├── model_artifacts/
- │   ├── xgb_model.joblib
- │   ├── xgb_model_edge.joblib
- │   ├── scaler.joblib
- │   ├── onehot_encoder.joblib
- │   ├── num_imputer.joblib
- │   ├── cat_imputer.joblib
- │   ├── ordinal_imputer.joblib
- │   ├── model_config.joblib
- │   ├── model_config_edge.joblib
- │   ├── X_train_scaled_sample.csv
- │   └── X_train_edge_sample.csv
- │
- ├── edge/
- │   ├── xgb_model.json
- │   ├── xgb_model_edge.json
- │   ├── inference_contract.json
- │   ├── inference_contract_edge.json
- │   ├── parity_sample.json
- │   ├── parity_sample_edge.json
- │   ├── raw_parity_case.json
- │   ├── sample_scaled.npy
- │   ├── sample_scaled_edge.npy
- │   ├── expected_proba.npy
- │   ├── expected_proba_edge.npy
- │   ├── expected_margin.npy
- │   ├── expected_margin_edge.npy
- │   ├── index.html
- │   ├── demo.js
- │   └── churn-wasm/
- │       ├── Cargo.toml
- │       ├── src/
- │       │   ├── lib.rs
- │       │   ├── contract.rs
- │       │   ├── preprocessing.rs
- │       │   ├── model.rs
- │       │   └── inference.rs
- │       └── tests/
- │           └── parity_raw.rs
- │
- ├── src/
- │   ├── __init__.py
- │   ├── config.py
- │   ├── data_loading.py
- │   ├── preprocessing.py
- │   ├── train.py
- │   └── export_edge.py
- │
- ├── scripts/
- │   ├── train_model.py
- │   ├── export_edge.py
- │   ├── validate_parity.py
- │   ├── train_edge_model.py
- │   ├── export_edge_lite.py
- │   └── validate_parity_raw.py
- │
- └── .github/
-     └── workflows/
-         └── ci.yml
+│
+├── .gitignore
+├── pyproject.toml
+├── README.md                                  # Contains the "🗺️ Project Evolution" section
+├── run_all.py                                 # Unified MLOps orchestrator
+├── Makefile
+│
+├── data/
+│   ├── raw/
+│   │   └── Credit_card_churn.csv              # Immutable Source (Phase 1)
+│   ├── processed/                             # 🟢 (Phase 2) ML-ready data
+│   │   └── credit_card_churn_iot_synthetic.csv
+│   └── synthetic/                             # 🟢 (Phase 2) Traceability & Auditing
+│       └── iot_features_metadata.json         # 🛡️ Zero Target Leakage Proof
+│
+├── model_artifacts/
+│   ├── xgb_model.joblib                       # (Phase 1) Full Baseline
+│   ├── xgb_model_edge.joblib                  # (Phase 1) Edge Lite
+│   ├── [scalers, imputers, configs...]        # (Phase 1)
+│   └── edge_iot/                              # 🟢 (Phase 2) Edge IoT Artifacts
+│       ├── xgb_model.joblib
+│       ├── scaler.joblib
+│       ├── model_config.joblib                # Includes optimal threshold (0.33)
+│       └── X_test_scaled_sample.csv
+│
+├── edge/
+│   ├── xgb_model.json                         # (Phase 1)
+│   ├── inference_contract.json                # (Phase 1)
+│   ├── xgb_model_edge.json                    # (Phase 1)
+│   ├── inference_contract_edge.json           # (Phase 1)
+│   ├── xgb_model_edge_iot.json                # 🟢 (Phase 2) WASM Core
+│   ├── inference_contract_edge_iot.json       # 🟢 (Phase 2) Privacy Firewall
+│   ├── sample_scaled_edge_iot.npy             # 🟢 (Phase 2) Parity Check
+│   ├── expected_proba_edge_iot.npy            # 🟢 (Phase 2) Expected Probabilities
+│   ├── index.html / demo.js
+│   └── churn-wasm/                            # Rust Engine (Prepared for Phase 3)
+│       ├── Cargo.toml
+│       └── src/ ...
+│
+├── src/
+│   ├── config.py                              # (Updated: IOT_REFERENCE, Bounds)
+│   ├── data_loading.py                        # (Updated: with_iot=True)
+│   ├── preprocessing.py                       # (Updated: apply_iot_bounds)
+│   ├── train.py                               # (Updated: optimize_threshold)
+│   ├── synthetic_iot.py                       # 🟢 (Phase 2) Simulation Engine
+│   └── export_edge.py
+│
+├── scripts/
+│   ├── train_model.py                         # (Phase 1)
+│   ├── export_edge.py                         # (Phase 1)
+│   ├── validate_parity.py                     # (Phase 1)
+│   ├── train_edge_model.py                    # (Phase 1)
+│   ├── export_edge_lite.py                    # (Phase 1)
+│   ├── generate_synthetic_iot.py              # 🟢 (Phase 2)
+│   ├── train_edge_iot_model.py                # 🟢 (Phase 2)
+│   └── export_edge_iot.py                     # 🟢 (Phase 2)
+│
+└── .github/workflows/ci.yml
 ```
 ---
 
