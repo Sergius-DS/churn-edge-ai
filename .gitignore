@@ -67,10 +67,12 @@ data/synthetic/
 # para no versionar binarios .joblib pesados generados en cada entrenamiento.
 model_artifacts/edge_iot/
 
-# Archivos generados automáticamente por `scripts/export_edge_iot.py`
-edge/xgb_model_edge_iot.json
-edge/inference_contract_edge_iot.json
-edge/sample_scaled_edge_iot.npy
-edge/expected_proba_edge_iot.npy
-edge/expected_margin_edge_iot.npy
-edge/parity_sample_edge_iot.json
+# Archivos binarios numpy generados por export_edge_iot.py
+# Se regeneran automáticamente con: python scripts/export_edge_iot.py
+edge/*.npy
+
+# Archivos JSON de contratos y paridad SÍ se trackean (fuente de verdad para Rust)
+# edge/inference_contract_edge_iot.json  ← TRACKED
+# edge/xgb_model_edge_iot.json          ← TRACKED
+# edge/parity_sample_edge_iot.json      ← TRACKED
+# edge/raw_parity_case_iot.json         ← TRACKED

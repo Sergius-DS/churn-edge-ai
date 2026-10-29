@@ -1,0 +1,428 @@
+{
+  "version": 1,
+  "model_type": "edge_iot",
+  "created_at": "2026-10-29T23:30:16.989965+00:00",
+  "target": "Attrition_Flag",
+  "best_threshold": 0.33,
+  "seed": 44,
+  "feature_order": [
+    "Customer_Age",
+    "Dependent_count",
+    "Months_on_book",
+    "Total_Relationship_Count",
+    "Months_Inactive_12_mon",
+    "Contacts_Count_12_mon",
+    "Credit_Limit",
+    "Total_Revolving_Bal",
+    "Avg_Open_To_Buy",
+    "Total_Amt_Chng_Q4_Q1",
+    "Total_Trans_Amt",
+    "Total_Trans_Ct",
+    "Total_Ct_Chng_Q4_Q1",
+    "Avg_Utilization_Ratio",
+    "app_open_count_30d",
+    "contactless_usage_count_30d",
+    "payment_flow_abandon_count_30d",
+    "nfc_failed_attempts_30d",
+    "app_crash_count_30d",
+    "pos_latency_p95_ms",
+    "Income_Category_ordinal",
+    "Income_Category_is_unknown",
+    "Education_Level_ordinal",
+    "Education_Level_is_unknown",
+    "Gender_F",
+    "Gender_M",
+    "Marital_Status_Divorced",
+    "Marital_Status_Married",
+    "Marital_Status_Single",
+    "Marital_Status_Unknown",
+    "Card_Category_Blue",
+    "Card_Category_Gold",
+    "Card_Category_Platinum",
+    "Card_Category_Silver"
+  ],
+  "n_features": 34,
+  "iot_features": [
+    "app_open_count_30d",
+    "contactless_usage_count_30d",
+    "payment_flow_abandon_count_30d",
+    "nfc_failed_attempts_30d",
+    "app_crash_count_30d",
+    "pos_latency_p95_ms"
+  ],
+  "iot_bounds": {
+    "app_open_count_30d": [
+      0.0,
+      365.0
+    ],
+    "contactless_usage_count_30d": [
+      0.0,
+      500.0
+    ],
+    "payment_flow_abandon_count_30d": [
+      0.0,
+      100.0
+    ],
+    "nfc_failed_attempts_30d": [
+      0.0,
+      100.0
+    ],
+    "app_crash_count_30d": [
+      0.0,
+      100.0
+    ],
+    "pos_latency_p95_ms": [
+      50.0,
+      20000.0
+    ]
+  },
+  "forbidden_fields": [
+    "pan",
+    "cvv",
+    "card_number",
+    "account_number",
+    "gps_exact",
+    "latitude",
+    "longitude",
+    "device_id",
+    "raw_merchant_name"
+  ],
+  "consent_required": true,
+  "raw_input": {
+    "numeric_columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio",
+      "app_open_count_30d",
+      "contactless_usage_count_30d",
+      "payment_flow_abandon_count_30d",
+      "nfc_failed_attempts_30d",
+      "app_crash_count_30d",
+      "pos_latency_p95_ms"
+    ],
+    "categorical_columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ]
+  },
+  "numeric_imputer": {
+    "strategy": "mean",
+    "columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio",
+      "app_open_count_30d",
+      "contactless_usage_count_30d",
+      "payment_flow_abandon_count_30d",
+      "nfc_failed_attempts_30d",
+      "app_crash_count_30d",
+      "pos_latency_p95_ms"
+    ],
+    "values": [
+      46.26984322923096,
+      2.359461794840143,
+      35.864090852981114,
+      3.8006418960622144,
+      2.3483520553018145,
+      2.455252437970621,
+      8654.48229848167,
+      1157.8801382545364,
+      7496.602160227133,
+      683.1016954415601,
+      4409.300333292186,
+      64.92358968028638,
+      588.2137459567057,
+      245.85448092828045,
+      76.45747438587829,
+      58.027404024194546,
+      5.10171583755092,
+      3.037896555980743,
+      2.541784964819158,
+      1671.263177385508
+    ]
+  },
+  "categorical_imputer": {
+    "strategy": "most_frequent",
+    "columns": [
+      "Gender",
+      "Education_Level",
+      "Marital_Status",
+      "Income_Category",
+      "Card_Category"
+    ],
+    "values": [
+      "F",
+      "Graduate",
+      "Married",
+      "Less than $40K",
+      "Blue"
+    ]
+  },
+  "ordinal": {
+    "income_column": "Income_Category",
+    "education_column": "Education_Level",
+    "income_mapping": {
+      "Less than $40K": 0,
+      "$40K - $60K": 1,
+      "$60K - $80K": 2,
+      "$80K - $120K": 3,
+      "$120K +": 4,
+      "Unknown": null
+    },
+    "education_mapping": {
+      "Uneducated": 0,
+      "High School": 1,
+      "College": 2,
+      "Graduate": 3,
+      "Post-Graduate": 4,
+      "Doctorate": 5,
+      "Unknown": null
+    },
+    "income_ordinal_feature": "Income_Category_ordinal",
+    "education_ordinal_feature": "Education_Level_ordinal",
+    "income_unknown_feature": "Income_Category_is_unknown",
+    "education_unknown_feature": "Education_Level_is_unknown",
+    "income_median": 1.0,
+    "education_median": 2.0
+  },
+  "onehot": {
+    "columns": [
+      "Gender",
+      "Marital_Status",
+      "Card_Category"
+    ],
+    "categories": {
+      "Gender": [
+        "F",
+        "M"
+      ],
+      "Marital_Status": [
+        "Divorced",
+        "Married",
+        "Single",
+        "Unknown"
+      ],
+      "Card_Category": [
+        "Blue",
+        "Gold",
+        "Platinum",
+        "Silver"
+      ]
+    },
+    "encoded_feature_names": [
+      "Gender_F",
+      "Gender_M",
+      "Marital_Status_Divorced",
+      "Marital_Status_Married",
+      "Marital_Status_Single",
+      "Marital_Status_Unknown",
+      "Card_Category_Blue",
+      "Card_Category_Gold",
+      "Card_Category_Platinum",
+      "Card_Category_Silver"
+    ],
+    "category_feature_pairs": [
+      {
+        "column": "Gender",
+        "category": "F",
+        "feature": "Gender_F"
+      },
+      {
+        "column": "Gender",
+        "category": "M",
+        "feature": "Gender_M"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Divorced",
+        "feature": "Marital_Status_Divorced"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Married",
+        "feature": "Marital_Status_Married"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Single",
+        "feature": "Marital_Status_Single"
+      },
+      {
+        "column": "Marital_Status",
+        "category": "Unknown",
+        "feature": "Marital_Status_Unknown"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Blue",
+        "feature": "Card_Category_Blue"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Gold",
+        "feature": "Card_Category_Gold"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Platinum",
+        "feature": "Card_Category_Platinum"
+      },
+      {
+        "column": "Card_Category",
+        "category": "Silver",
+        "feature": "Card_Category_Silver"
+      }
+    ],
+    "handle_unknown": "ignore"
+  },
+  "scaler": {
+    "method": "standard",
+    "columns": [
+      "Customer_Age",
+      "Dependent_count",
+      "Months_on_book",
+      "Total_Relationship_Count",
+      "Months_Inactive_12_mon",
+      "Contacts_Count_12_mon",
+      "Credit_Limit",
+      "Total_Revolving_Bal",
+      "Avg_Open_To_Buy",
+      "Total_Amt_Chng_Q4_Q1",
+      "Total_Trans_Amt",
+      "Total_Trans_Ct",
+      "Total_Ct_Chng_Q4_Q1",
+      "Avg_Utilization_Ratio",
+      "app_open_count_30d",
+      "contactless_usage_count_30d",
+      "payment_flow_abandon_count_30d",
+      "nfc_failed_attempts_30d",
+      "app_crash_count_30d",
+      "pos_latency_p95_ms",
+      "Income_Category_ordinal",
+      "Income_Category_is_unknown",
+      "Education_Level_ordinal",
+      "Education_Level_is_unknown",
+      "Gender_F",
+      "Gender_M",
+      "Marital_Status_Divorced",
+      "Marital_Status_Married",
+      "Marital_Status_Single",
+      "Marital_Status_Unknown",
+      "Card_Category_Blue",
+      "Card_Category_Gold",
+      "Card_Category_Platinum",
+      "Card_Category_Silver"
+    ],
+    "mean": [
+      46.31969982383931,
+      2.3891853366342866,
+      35.92228063730215,
+      3.5742650583111413,
+      2.4994117818430426,
+      2.668539800549387,
+      8428.520897564571,
+      944.4317708394726,
+      7484.089126725099,
+      664.1669514497158,
+      3870.9768101913455,
+      56.86974814553246,
+      526.0622599367077,
+      204.5954485192944,
+      76.39619857869033,
+      57.85753474128406,
+      4.528635502113897,
+      2.680277454988929,
+      2.2417309490674677,
+      1500.867259248096,
+      1.2843598357966657,
+      0.07339314605088984,
+      2.052930693435034,
+      0.10133843212237094,
+      0.5526375019213002,
+      0.4473624980786998,
+      0.0775206203451844,
+      0.4541796870227063,
+      0.39348322710900463,
+      0.07481646552310461,
+      0.9345318571090014,
+      0.012077333269963672,
+      0.0023146393917396297,
+      0.05107617022929523
+    ],
+    "scale": [
+      7.313538052129037,
+      1.1994739900042553,
+      7.3610826384253905,
+      1.4927678195349865,
+      0.9254821156567355,
+      1.0668224863330777,
+      9138.000709846685,
+      889.5556928432862,
+      9164.872099289396,
+      283.7248276853365,
+      3051.026321845682,
+      22.21679531188369,
+      311.02452107231136,
+      270.7126900112287,
+      17.664061483573633,
+      12.673466977904422,
+      8.530906311196862,
+      5.168612142181764,
+      4.368018412211785,
+      2400.7600347451566,
+      1.2408948309941223,
+      0.26078073579856814,
+      1.2179435455802103,
+      0.3017763315724919,
+      0.472743135008027,
+      0.472743135008027,
+      0.24844448135895753,
+      0.4649406808852004,
+      0.4556342961160891,
+      0.24402748148434283,
+      0.2373490611168562,
+      0.10234548137616285,
+      0.04319630868482728,
+      0.20979685857144947
+    ]
+  },
+  "xgboost": {
+    "base_score_param": "[5E-1]",
+    "base_raw_hint": 0.0,
+    "note": "Validar base_score con parity_sample_edge_iot.json."
+  },
+  "output": {
+    "type": "churn_probability",
+    "range": [
+      0.0,
+      1.0
+    ]
+  },
+  "privacy_mode": "edge_local_inference",
+  "model_sha256": "719948e700284df70909765d5a2979763cf7ddebf84390e3b5d8d3bbbc21bcb9"
+}
