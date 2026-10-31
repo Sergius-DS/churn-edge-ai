@@ -1,5 +1,5 @@
 // src/preprocessing.rs
-// Preprocessing: imputación → ordinal → onehot → escalado.
+// Preprocessing: validación de privacidad → clipping IoT → imputación → ordinal → onehot → escalado.
 // Replica exactamente lo que hace Python.
 
 use crate::contract::InferenceContract;
@@ -18,22 +18,40 @@ pub fn preprocess(
     raw_input: &Value,
     contract: &InferenceContract,
 ) -> Result<PreprocessedInput, String> {
-    // ─── Paso 1: Extraer valores numéricos con imputación ───
-    let mut numeric_values: HashMap<String, f64> = HashMap::new();
+    // ─── Paso 0: Firewall de Privacidad (Forbidden Fields) ───
+    for forbidden in &contract.forbidden_fields {
+        if raw_input.get(forbidden).is_some() {
+            return Err(format!(
+                "Privacy violation: forbidden field '{}' detected in raw input",
+                forbidden
+            ));
+        }
+    }
 
+    // ─── Paso 1: Extraer valores numéricos con clipping IoT + imputación ───
+    let mut numeric_values: HashMap<String, f64> = HashMap::new();
     for (i, col) in contract.numeric_imputer.columns.iter().enumerate() {
         let val = raw_input.get(col);
-        let imputed = match val {
+        let mut imputed = match val {
             Some(Value::Number(n)) => n.as_f64().unwrap_or(contract.numeric_imputer.values[i]),
             Some(Value::Null) | None => contract.numeric_imputer.values[i],
             _ => contract.numeric_imputer.values[i],
         };
+
+        // Aplicar bounds si es una feature IoT (clipping automático)
+        if let Some((min, max)) = contract.iot_bound(col) {
+            if imputed < min {
+                imputed = min;
+            } else if imputed > max {
+                imputed = max;
+            }
+        }
+
         numeric_values.insert(col.clone(), imputed);
     }
 
     // ─── Paso 2: Extraer valores categóricos con imputación ───
     let mut categorical_values: HashMap<String, String> = HashMap::new();
-
     for (i, col) in contract.categorical_imputer.columns.iter().enumerate() {
         let val = raw_input.get(col);
         let imputed = match val {
@@ -46,7 +64,7 @@ pub fn preprocess(
 
     // ─── Paso 3: Encoding ordinal + flags is_unknown ───
     let mut ordinal_values: HashMap<String, f64> = HashMap::new();
-
+    
     // Income_Category → ordinal
     let income_val = categorical_values.get(&contract.ordinal.income_column);
     let (income_ord, income_unknown) = match income_val {
@@ -77,7 +95,6 @@ pub fn preprocess(
 
     // ─── Paso 4: OneHot encoding ───
     let mut onehot_values: HashMap<String, f64> = HashMap::new();
-
     for pair in &contract.onehot.category_feature_pairs {
         let cat_val = categorical_values.get(&pair.column);
         let is_match = match cat_val {
@@ -90,7 +107,6 @@ pub fn preprocess(
     // ─── Paso 5: Construir vector en el orden del modelo ───
     let n_features = contract.feature_order.len();
     let mut features_raw = vec![0.0f64; n_features];
-
     for (i, feat_name) in contract.feature_order.iter().enumerate() {
         let val = if let Some(v) = numeric_values.get(feat_name) {
             *v
