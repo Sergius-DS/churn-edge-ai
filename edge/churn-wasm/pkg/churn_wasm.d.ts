@@ -6,23 +6,22 @@
  *
  * # Argumentos
  * - `input_json`: JSON string con los datos crudos del cliente
- * - `model_json`: JSON string del modelo XGBoost (xgb_model_edge.json)
- * - `contract_json`: JSON string del contrato (inference_contract_edge.json)
+ * - `model_json`: JSON string del modelo XGBoost
+ * - `contract_json`: JSON string del contrato de inferencia
+ * - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
  *
  * # Retorna
- * JSON string con la predicción.
+ * JSON string con la predicción + regla de negocio de retención.
  */
-export function predict_churn(input_json: string, model_json: string, contract_json: string): string;
+export function predict_churn(input_json: string, model_json: string, contract_json: string, consent: boolean): string;
 
 /**
- * Función auxiliar para validar paridad con Python.
- * Toma features ya escaladas y retorna probabilidad + margin.
+ * Función auxiliar para validar paridad con Python (sin consentimiento).
  */
 export function predict_from_scaled_features(features_json: string, model_json: string): string;
 
 /**
  * Función de verificación de paridad.
- * Compara la predicción WASM con el expected de Python.
  */
 export function verify_parity(features_json: string, expected_proba: number, model_json: string, tolerance: number): string;
 
@@ -30,7 +29,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly predict_churn: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly predict_churn: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly predict_from_scaled_features: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly verify_parity: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;

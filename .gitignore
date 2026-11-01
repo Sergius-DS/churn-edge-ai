@@ -28,7 +28,7 @@ htmlcov/
 # RUST Y WASM
 # =========================================
 target/
-pkg/
+# pkg/
 **/*.rs.bk
 # Cargo.lock  # (Opcional: descomenta si quieres ignorarlo)
 

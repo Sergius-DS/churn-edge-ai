@@ -5,17 +5,19 @@
  *
  * # Argumentos
  * - `input_json`: JSON string con los datos crudos del cliente
- * - `model_json`: JSON string del modelo XGBoost (xgb_model_edge.json)
- * - `contract_json`: JSON string del contrato (inference_contract_edge.json)
+ * - `model_json`: JSON string del modelo XGBoost
+ * - `contract_json`: JSON string del contrato de inferencia
+ * - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
  *
  * # Retorna
- * JSON string con la predicción.
+ * JSON string con la predicción + regla de negocio de retención.
  * @param {string} input_json
  * @param {string} model_json
  * @param {string} contract_json
+ * @param {boolean} consent
  * @returns {string}
  */
-export function predict_churn(input_json, model_json, contract_json) {
+export function predict_churn(input_json, model_json, contract_json, consent) {
     let deferred4_0;
     let deferred4_1;
     try {
@@ -26,7 +28,7 @@ export function predict_churn(input_json, model_json, contract_json) {
         const len1 = WASM_VECTOR_LEN;
         const ptr2 = passStringToWasm0(contract_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len2 = WASM_VECTOR_LEN;
-        wasm.predict_churn(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        wasm.predict_churn(retptr, ptr0, len0, ptr1, len1, ptr2, len2, consent);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         deferred4_0 = r0;
@@ -39,8 +41,7 @@ export function predict_churn(input_json, model_json, contract_json) {
 }
 
 /**
- * Función auxiliar para validar paridad con Python.
- * Toma features ya escaladas y retorna probabilidad + margin.
+ * Función auxiliar para validar paridad con Python (sin consentimiento).
  * @param {string} features_json
  * @param {string} model_json
  * @returns {string}
@@ -68,7 +69,6 @@ export function predict_from_scaled_features(features_json, model_json) {
 
 /**
  * Función de verificación de paridad.
- * Compara la predicción WASM con el expected de Python.
  * @param {string} features_json
  * @param {number} expected_proba
  * @param {string} model_json

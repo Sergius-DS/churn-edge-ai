@@ -1,7 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const predict_churn: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+export const predict_churn: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const predict_from_scaled_features: (a: number, b: number, c: number, d: number, e: number) => void;
 export const verify_parity: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
