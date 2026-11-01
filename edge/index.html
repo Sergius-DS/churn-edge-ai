@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🪶 Churn Edge AI — WASM Demo</title>
+    <title>🪶 Churn Edge AI — WASM Demo (IoT Edition)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -13,7 +13,7 @@
             min-height: 100vh;
             padding: 20px;
         }
-        .container { max-width: 900px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
         h1 {
             text-align: center;
             margin-bottom: 5px;
@@ -38,11 +38,20 @@
             margin-bottom: 20px;
             font-size: 0.9em;
         }
+        .section-title {
+            color: #94a3b8;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 20px 0 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #334155;
+        }
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         .form-group label {
             display: block;
@@ -62,6 +71,49 @@
         .form-group input:focus, .form-group select:focus {
             outline: none;
             border-color: #3b82f6;
+        }
+        /* Estilos IoT específicos */
+        .iot-section .form-group input {
+            border-color: #7c3aed;
+        }
+        .iot-section .form-group input:focus {
+            border-color: #a78bfa;
+        }
+        .iot-badge {
+            display: inline-block;
+            font-size: 0.65em;
+            background: #7c3aed;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        /* Consentimiento */
+        .consent-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            margin: 20px 0;
+            background: #1e293b;
+            border: 1px solid #7c3aed;
+            border-radius: 8px;
+        }
+        .consent-box input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #7c3aed;
+            cursor: pointer;
+        }
+        .consent-box label {
+            color: #e2e8f0;
+            font-size: 0.95em;
+            cursor: pointer;
+            user-select: none;
+        }
+        .consent-box .lock-icon {
+            font-size: 1.2em;
         }
         #predictBtn {
             display: block;
@@ -93,6 +145,26 @@
             font-size: 0.75em;
             margin-left: 5px;
         }
+        .tech-badge.iot {
+            background: #7c3aed;
+            color: white;
+        }
+        .cashback-card {
+            margin-top: 20px;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #7c3aed, #3b82f6);
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+        .cashback-card h3 {
+            margin-bottom: 8px;
+            font-size: 1.2em;
+        }
+        .cashback-card p {
+            font-size: 0.9em;
+            opacity: 0.95;
+        }
     </style>
 </head>
 <body>
@@ -102,13 +174,17 @@
             Inferencia XGBoost en el navegador
             <span class="tech-badge">Rust</span>
             <span class="tech-badge">WASM</span>
-            <span class="tech-badge">12 features</span>
-            <span class="tech-badge">228 KB</span>
+            <span class="tech-badge iot">34 features</span>
+            <span class="tech-badge iot">IoT Edition</span>
         </p>
 
         <div id="status">🟡 Cargando motor WASM...</div>
         <div id="parity"></div>
 
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- SECCIÓN 1: DATOS BANCARIOS (19 campos)     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div class="section-title">🏦 Datos Bancarios</div>
         <div class="form-grid">
             <div class="form-group">
                 <label>Customer_Age</label>
@@ -216,15 +292,64 @@
             </div>
         </div>
 
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- SECCIÓN 2: DATOS IoT (6 campos nuevos)     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div class="section-title iot-section">
+            📡 Datos IoT (App + POS)
+            <span class="iot-badge">Requiere consentimiento</span>
+        </div>
+        <div class="form-grid iot-section">
+            <div class="form-group">
+                <label>app_open_count_30d</label>
+                <input type="number" id="app_open_count_30d" value="76" min="0" max="365">
+            </div>
+            <div class="form-group">
+                <label>contactless_usage_count_30d</label>
+                <input type="number" id="contactless_usage_count_30d" value="58" min="0" max="500">
+            </div>
+            <div class="form-group">
+                <label>payment_flow_abandon_count_30d</label>
+                <input type="number" id="payment_flow_abandon_count_30d" value="5" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>nfc_failed_attempts_30d</label>
+                <input type="number" id="nfc_failed_attempts_30d" value="3" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>app_crash_count_30d</label>
+                <input type="number" id="app_crash_count_30d" value="2" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>pos_latency_p95_ms</label>
+                <input type="number" id="pos_latency_p95_ms" value="1500" min="50" max="20000">
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- CONSENTIMIENTO (GDPR / Privacy)            -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div class="consent-box">
+            <span class="lock-icon">🔒</span>
+            <input type="checkbox" id="consentCheckbox">
+            <label for="consentCheckbox">
+                Acepto el uso de mis <strong>datos IoT</strong> (app + POS) 
+                para inferencia local en mi navegador. 
+                <small style="color: #94a3b8;">
+                    Los datos nunca salen de mi dispositivo.
+                </small>
+            </label>
+        </div>
+
         <button id="predictBtn">🔮 Predecir Churn</button>
 
         <div id="result">
             <div style="text-align: center; color: #64748b; padding: 20px;">
-                Ingresa los datos del cliente y haz clic en "Predecir"
+                Ingresa los datos del cliente, acepta el consentimiento IoT 
+                y haz clic en "Predecir"
             </div>
         </div>
     </div>
-
     <script type="module" src="demo.js"></script>
 </body>
 </html>

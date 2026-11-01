@@ -20,22 +20,27 @@ struct PredictionResult {
     threshold: f64,
     n_features: usize,
     n_trees: usize,
+    /// Nueva flag: si se debe ofrecer cashback (proba > threshold + consentimiento)
+    offer_retention: bool,
+    consent_granted: bool,
 }
 
 /// Función principal exportada a JavaScript.
 ///
 /// # Argumentos
 /// - `input_json`: JSON string con los datos crudos del cliente
-/// - `model_json`: JSON string del modelo XGBoost (xgb_model_edge.json)
-/// - `contract_json`: JSON string del contrato (inference_contract_edge.json)
+/// - `model_json`: JSON string del modelo XGBoost
+/// - `contract_json`: JSON string del contrato de inferencia
+/// - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
 ///
 /// # Retorna
-/// JSON string con la predicción.
+/// JSON string con la predicción + regla de negocio de retención.
 #[wasm_bindgen]
 pub fn predict_churn(
     input_json: &str,
     model_json: &str,
     contract_json: &str,
+    consent: bool,
 ) -> String {
     // ─── Parsear inputs ───
     let raw_input: Value = match serde_json::from_str(input_json) {
@@ -53,6 +58,13 @@ pub fn predict_churn(
         Err(e) => return error_response(&format!("Error parseando contrato: {}", e)),
     };
 
+    // ─── Validación de consentimiento (Firewall GDPR/Privacy) ───
+    if contract.consent_required && !consent {
+        return error_response(
+            "Consent Required: el contrato requiere consentimiento para procesar datos IoT"
+        );
+    }
+
     // ─── Preprocessing ───
     let preprocessed = match preprocessing::preprocess(&raw_input, &contract) {
         Ok(p) => p,
@@ -64,6 +76,9 @@ pub fn predict_churn(
     let probability = inference::sigmoid(margin);
     let is_churn = probability >= contract.best_threshold;
 
+    // ─── Regla de negocio: ofrecer cashback si proba > threshold + consentimiento ───
+    let offer_retention = is_churn && consent;
+
     // ─── Resultado ───
     let result = PredictionResult {
         probability,
@@ -73,6 +88,8 @@ pub fn predict_churn(
         threshold: contract.best_threshold,
         n_features: preprocessed.features.len(),
         n_trees: model.num_trees(),
+        offer_retention,
+        consent_granted: consent,
     };
 
     match serde_json::to_string(&result) {
@@ -81,8 +98,7 @@ pub fn predict_churn(
     }
 }
 
-/// Función auxiliar para validar paridad con Python.
-/// Toma features ya escaladas y retorna probabilidad + margin.
+/// Función auxiliar para validar paridad con Python (sin consentimiento).
 #[wasm_bindgen]
 pub fn predict_from_scaled_features(
     features_json: &str,
@@ -92,25 +108,20 @@ pub fn predict_from_scaled_features(
         Ok(f) => f,
         Err(e) => return error_response(&format!("Error parseando features: {}", e)),
     };
-
     let model = match model::XgbModel::from_json(model_json) {
         Ok(m) => m,
         Err(e) => return error_response(&format!("Error parseando modelo: {}", e)),
     };
-
     let margin = inference::predict_margin(&model, &features);
     let probability = inference::sigmoid(margin);
-
     let result = serde_json::json!({
         "probability": probability,
         "margin": margin,
     });
-
     result.to_string()
 }
 
 /// Función de verificación de paridad.
-/// Compara la predicción WASM con el expected de Python.
 #[wasm_bindgen]
 pub fn verify_parity(
     features_json: &str,
@@ -122,17 +133,14 @@ pub fn verify_parity(
         Ok(f) => f,
         Err(e) => return error_response(&format!("Error parseando features: {}", e)),
     };
-
     let model = match model::XgbModel::from_json(model_json) {
         Ok(m) => m,
         Err(e) => return error_response(&format!("Error parseando modelo: {}", e)),
     };
-
     let margin = inference::predict_margin(&model, &features);
     let probability = inference::sigmoid(margin);
     let diff = (probability - expected_proba).abs();
     let passed = diff <= tolerance;
-
     let result = serde_json::json!({
         "python_proba": expected_proba,
         "rust_proba": probability,
@@ -140,18 +148,13 @@ pub fn verify_parity(
         "tolerance": tolerance,
         "passed": passed,
     });
-
     result.to_string()
 }
 
-/// Respuesta de error estándar.
 fn error_response(msg: &str) -> String {
     serde_json::json!({ "error": msg }).to_string()
 }
 
-// ═══════════════════════════════════════════════════════════
-// TESTS NATIVOS (cargo test)
-// ═══════════════════════════════════════════════════════════
 #[cfg(test)]
 mod tests {
     use super::*;
