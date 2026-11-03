@@ -11,12 +11,18 @@ dependencies = [
     "imbalanced-learn>=0.11",
     "joblib>=1.3",
     "matplotlib>=3.7",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+]
+mock = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [build-system]
