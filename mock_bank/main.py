@@ -221,4 +221,4 @@ if __name__ == "__main__":
     print("📖 Documentación: http://localhost:8000/docs")
     # ✅ String de importación en lugar del objeto app
     uvicorn.run("mock_bank.main:app", host="0.0.0.0", port=8000, reload=True)
-    #uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    #uvicorn.run(app, host="0.0.0.0", port=8000, reload=False) 
