@@ -38,6 +38,55 @@
             margin-bottom: 20px;
             font-size: 0.9em;
         }
+        /* ═══ NUEVO: Sección de selector de cliente ═══ */
+        .client-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            margin: 20px 0;
+            background: #1e293b;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }
+        .client-selector label {
+            color: #94a3b8;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .client-selector select {
+            padding: 8px 12px;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 0.95em;
+            flex: 1;
+            min-width: 200px;
+        }
+        .client-selector button {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .client-selector button:hover { background: #2563eb; }
+        .client-selector button:disabled { background: #475569; cursor: not-allowed; }
+        .client-profile-tag {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .profile-high-risk { background: #7f1d1d; color: #fca5a5; }
+        .profile-low-risk { background: #14532d; color: #86efac; }
+
         .section-title {
             color: #94a3b8;
             font-size: 0.95em;
@@ -165,6 +214,24 @@
             font-size: 0.9em;
             opacity: 0.95;
         }
+        /* NUEVO: Log de actividad del Mock Bank */
+        .api-log {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 6px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.78em;
+            color: #94a3b8;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .api-log div { margin-bottom: 3px; }
+        .log-get { color: #60a5fa; }
+        .log-post { color: #f59e0b; }
+        .log-ok { color: #22c55e; }
+        .log-err { color: #ef4444; }
     </style>
 </head>
 <body>
@@ -176,10 +243,28 @@
             <span class="tech-badge">WASM</span>
             <span class="tech-badge iot">34 features</span>
             <span class="tech-badge iot">IoT Edition</span>
+            <span class="tech-badge" style="background:#f59e0b;color:#0f172a;">Mock Bank</span>
         </p>
 
         <div id="status">🟡 Cargando motor WASM...</div>
         <div id="parity"></div>
+
+        <!-- ═══════════════════════════════════════════════ -->
+        <!-- NUEVO: SELECTOR DE CLIENTE (Mock Bank)         -->
+        <!-- ═══════════════════════════════════════════════ -->
+        <div class="client-selector">
+            <label>👤 Cliente:</label>
+            <select id="clientSelect">
+                <option value="CLIENT_001" selected>CLIENT_001 — Alto riesgo (44% churn)</option>
+                <option value="CLIENT_002">CLIENT_002 — Bajo riesgo (cliente estable)</option>
+            </select>
+            <button id="loadClientBtn">📥 Cargar datos del banco</button>
+            <span id="clientProfileTag" class="client-profile-tag profile-high-risk">
+                🔴 Alto riesgo
+            </span>
+        </div>
+
+        <div id="apiLog" class="api-log"></div>
 
         <!-- ═══════════════════════════════════════════ -->
         <!-- SECCIÓN 1: DATOS BANCARIOS (19 campos)     -->

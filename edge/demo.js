@@ -1,12 +1,29 @@
 // demo.js
 // Carga el módulo WASM, el modelo IoT y el contrato enriquecido.
-// Ejecuta la predicción con los 25 inputs (19 bank + 6 IoT) + consentimiento.
+// Consume datos del Mock Bank API y ejecuta predicción con consentimiento.
 
 import init, { predict_churn, verify_parity } from './churn-wasm/pkg/churn_wasm.js';
+
+// ─── Configuración del Mock Bank ───
+const MOCK_BANK_URL = 'http://localhost:8000';
+let currentClientId = 'CLIENT_001';
 
 let wasmReady = false;
 let modelJson = null;
 let contractJson = null;
+
+// ─── Helper: logger visual de llamadas a la API ───
+function logApi(method, endpoint, status, detail = '') {
+    const logDiv = document.getElementById('apiLog');
+    if (!logDiv) return;
+    const cls = method === 'GET' ? 'log-get' : 'log-post';
+    const statusCls = status === 'ok' ? 'log-ok' : (status === 'err' ? 'log-err' : '');
+    const time = new Date().toLocaleTimeString();
+    const line = document.createElement('div');
+    line.innerHTML = `<span class="${cls}">[${method}]</span> ${endpoint} → <span class="${statusCls}">${status}</span> <span style="color:#64748b">${time} ${detail}</span>`;
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
 
 // ─── Helper para leer números aceptando coma decimal ───
 function readNumber(id) {
@@ -22,16 +39,16 @@ function readNumber(id) {
 // ─── Inicialización ───
 async function initialize() {
     try {
-        // Cargar WASM
+        // 1. Cargar WASM
         await init();
         console.log('✅ WASM cargado');
 
-        // Cargar modelo IoT (34 features)
+        // 2. Cargar modelo IoT (34 features)
         const modelResp = await fetch('xgb_model_edge_iot.json');
         modelJson = await modelResp.text();
         console.log('✅ Modelo IoT cargado:', modelJson.length, 'bytes');
 
-        // Cargar contrato IoT enriquecido
+        // 3. Cargar contrato IoT enriquecido
         const contractResp = await fetch('inference_contract_edge_iot.json');
         contractJson = await contractResp.text();
         console.log('✅ Contrato IoT cargado:', contractJson.length, 'bytes');
@@ -41,12 +58,122 @@ async function initialize() {
             '🟢 Motor WASM IoT listo (34 features)';
         document.getElementById('status').style.color = '#22c55e';
 
-        // Ejecutar paridad automáticamente
+        // 4. Verificar paridad con muestras pre-escaladas
         await runParityCheck();
+
+        // 5. NUEVO: Cargar datos iniciales desde Mock Bank
+        await loadFeaturesFromBank(currentClientId);
+        await checkPreviousConsent(currentClientId);
+
     } catch (err) {
         console.error('❌ Error de inicialización:', err);
         document.getElementById('status').textContent = '🔴 Error: ' + err.message;
         document.getElementById('status').style.color = '#ef4444';
+    }
+}
+
+// ─── NUEVO: Cargar features desde Mock Bank ───
+async function loadFeaturesFromBank(clientId) {
+    const btn = document.getElementById('loadClientBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const resp = await fetch(`${MOCK_BANK_URL}/api/features/${clientId}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        const data = await resp.json();
+        const features = data.features;
+
+        // Rellenar el formulario con los datos del banco
+        for (const [key, value] of Object.entries(features)) {
+            const el = document.getElementById(key);
+            if (el) {
+                el.value = value;
+            }
+        }
+
+        logApi('GET', `/api/features/${clientId}`, 'ok', 
+            `— ${Object.keys(features).length} campos cargados`);
+        
+        // Actualizar tag de perfil de riesgo
+        updateProfileTag(clientId);
+        
+        currentClientId = clientId;
+    } catch (err) {
+        logApi('GET', `/api/features/${clientId}`, 'err', `— ${err.message}`);
+        console.error('Error cargando features del banco:', err);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// ─── NUEVO: Verificar consentimiento previo ───
+async function checkPreviousConsent(clientId) {
+    try {
+        const resp = await fetch(`${MOCK_BANK_URL}/api/consent/${clientId}`);
+        if (!resp.ok) {
+            logApi('GET', `/api/consent/${clientId}`, 'err', `— HTTP ${resp.status}`);
+            return false;
+        }
+        
+        const data = await resp.json();
+        const checkbox = document.getElementById('consentCheckbox');
+        if (checkbox) {
+            checkbox.checked = data.consent === true;
+        }
+
+        if (data.consent) {
+            logApi('GET', `/api/consent/${clientId}`, 'ok', 
+                `— consentimiento previo (${data.granted_at || 'unknown'})`);
+        } else {
+            logApi('GET', `/api/consent/${clientId}`, 'ok', 
+                `— sin consentimiento registrado`);
+        }
+        return data.consent;
+    } catch (err) {
+        logApi('GET', `/api/consent/${clientId}`, 'err', `— ${err.message}`);
+        return false;
+    }
+}
+
+// ─── NUEVO: Registrar consentimiento en el banco ───
+async function registerConsentInBank(consent, clientId) {
+    try {
+        const resp = await fetch(`${MOCK_BANK_URL}/api/consent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: clientId,
+                consent: consent,
+            }),
+        });
+
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        const data = await resp.json();
+        logApi('POST', '/api/consent', 'ok', 
+            `— ${consent ? 'otorgado' : 'revocado'} para ${clientId}`);
+        return true;
+    } catch (err) {
+        logApi('POST', '/api/consent', 'err', `— ${err.message}`);
+        return false;
+    }
+}
+
+// ─── NUEVO: Actualizar tag de perfil de riesgo ───
+function updateProfileTag(clientId) {
+    const tag = document.getElementById('clientProfileTag');
+    if (!tag) return;
+    
+    if (clientId === 'CLIENT_001') {
+        tag.className = 'client-profile-tag profile-high-risk';
+        tag.textContent = '🔴 Alto riesgo';
+    } else if (clientId === 'CLIENT_002') {
+        tag.className = 'client-profile-tag profile-low-risk';
+        tag.textContent = '🟢 Bajo riesgo';
+    } else {
+        tag.className = 'client-profile-tag';
+        tag.textContent = clientId;
     }
 }
 
@@ -57,12 +184,9 @@ function handlePredict() {
         return;
     }
 
-    // Leer consentimiento
     const consent = document.getElementById('consentCheckbox').checked;
 
-    // Leer TODOS los inputs (19 bancarios + 6 IoT)
     const input = {
-        // ─── Datos bancarios (19) ───
         Customer_Age: readNumber('Customer_Age'),
         Gender: document.getElementById('Gender').value,
         Dependent_count: readNumber('Dependent_count'),
@@ -82,7 +206,6 @@ function handlePredict() {
         Total_Trans_Ct: readNumber('Total_Trans_Ct'),
         Total_Ct_Chng_Q4_Q1: readNumber('Total_Ct_Chng_Q4_Q1'),
         Avg_Utilization_Ratio: readNumber('Avg_Utilization_Ratio'),
-        // ─── Datos IoT (6) ───
         app_open_count_30d: readNumber('app_open_count_30d'),
         contactless_usage_count_30d: readNumber('contactless_usage_count_30d'),
         payment_flow_abandon_count_30d: readNumber('payment_flow_abandon_count_30d'),
@@ -93,13 +216,11 @@ function handlePredict() {
 
     const inputJson = JSON.stringify(input);
 
-    // Ejecutar predicción en WASM con consentimiento
     const startTime = performance.now();
     const resultJson = predict_churn(inputJson, modelJson, contractJson, consent);
     const endTime = performance.now();
     const result = JSON.parse(resultJson);
 
-    // Manejar errores (incluye "Consent Required")
     if (result.error) {
         document.getElementById('result').innerHTML = `
             <div style="text-align: center; padding: 20px;">
@@ -114,13 +235,11 @@ function handlePredict() {
         return;
     }
 
-    // ─── Renderizar resultado con regla de negocio ───
     const churnColor = result.is_churn ? '#ef4444' : '#22c55e';
     const churnLabel = result.is_churn 
         ? '🔴 ALTO RIESGO DE CHURN' 
         : '🟢 Cliente estable';
     
-    // Tarjeta de cashback si aplica la regla de negocio
     const cashbackHtml = result.offer_retention ? `
         <div class="cashback-card">
             <h3>🎁 Oferta de Retención Activada</h3>
@@ -131,7 +250,6 @@ function handlePredict() {
         </div>
     ` : '';
 
-    // Badge de consentimiento
     const consentBadge = result.consent_granted
         ? '<span style="color: #22c55e;">🔓 IoT activado</span>'
         : '<span style="color: #f59e0b;">🔒 IoT desactivado</span>';
@@ -211,6 +329,27 @@ async function runParityCheck() {
 
 // ─── Event listeners ───
 document.getElementById('predictBtn').addEventListener('click', handlePredict);
+
+// NUEVO: Botón "Cargar datos del banco"
+document.getElementById('loadClientBtn')?.addEventListener('click', async () => {
+    const selectedId = document.getElementById('clientSelect').value;
+    currentClientId = selectedId;
+    await loadFeaturesFromBank(selectedId);
+    await checkPreviousConsent(selectedId);
+});
+
+// NUEVO: Cuando cambia el selector, cargar automáticamente
+document.getElementById('clientSelect')?.addEventListener('change', async (e) => {
+    currentClientId = e.target.value;
+    await loadFeaturesFromBank(currentClientId);
+    await checkPreviousConsent(currentClientId);
+});
+
+// NUEVO: Cuando cambia el checkbox, registrar en el Mock Bank
+document.getElementById('consentCheckbox')?.addEventListener('change', async (e) => {
+    const consent = e.target.checked;
+    await registerConsentInBank(consent, currentClientId);
+});
 
 // Inicializar al cargar
 initialize();
