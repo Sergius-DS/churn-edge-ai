@@ -76,3 +76,4 @@ edge/*.npy
 # edge/xgb_model_edge_iot.json          ← TRACKED
 # edge/parity_sample_edge_iot.json      ← TRACKED
 # edge/raw_parity_case_iot.json         ← TRACKED
+BITACORA_ARQUITECTURA.md
