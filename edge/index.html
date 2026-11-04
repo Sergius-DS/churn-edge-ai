@@ -6,6 +6,7 @@
     <title>🪶 Churn Edge AI — WASM Demo (IoT Edition)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        [hidden] { display: none !important; }
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: #0f172a;
@@ -14,224 +15,206 @@
             padding: 20px;
         }
         .container { max-width: 1100px; margin: 0 auto; }
-        h1 {
-            text-align: center;
-            margin-bottom: 5px;
-            font-size: 1.8em;
-        }
-        .subtitle {
-            text-align: center;
-            color: #94a3b8;
-            margin-bottom: 20px;
-        }
+        h1 { text-align: center; margin-bottom: 5px; font-size: 1.8em; }
+        .subtitle { text-align: center; color: #94a3b8; margin-bottom: 20px; }
         #status {
-            text-align: center;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            background: #1e293b;
-            font-weight: bold;
+            text-align: center; padding: 10px; margin-bottom: 15px;
+            border-radius: 8px; background: #1e293b; font-weight: bold;
         }
-        #parity {
-            text-align: center;
-            padding: 8px;
-            margin-bottom: 20px;
-            font-size: 0.9em;
+        #parity { text-align: center; padding: 8px; margin-bottom: 20px; font-size: 0.9em; }
+
+        /* ═══ Toggle de vistas ═══ */
+        .view-toggle { display: flex; justify-content: center; gap: 8px; margin: 10px 0 22px; }
+        .view-toggle button {
+            padding: 10px 24px; border-radius: 999px; border: 1px solid #334155;
+            background: #1e293b; color: #94a3b8; font-weight: bold; cursor: pointer;
+            font-size: 0.95em; transition: all 0.2s;
         }
-        /* ═══ NUEVO: Sección de selector de cliente ═══ */
+        .view-toggle button.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+
+        /* ═══ Vista Operador (existente) ═══ */
         .client-selector {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 18px;
-            margin: 20px 0;
-            background: #1e293b;
-            border: 1px solid #3b82f6;
-            border-radius: 8px;
-            flex-wrap: wrap;
+            display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+            margin: 20px 0; background: #1e293b; border: 1px solid #3b82f6;
+            border-radius: 8px; flex-wrap: wrap;
         }
-        .client-selector label {
-            color: #94a3b8;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
+        .client-selector label { color: #94a3b8; font-size: 0.9em; font-weight: bold; }
         .client-selector select {
-            padding: 8px 12px;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            background: #0f172a;
-            color: #e2e8f0;
-            font-size: 0.95em;
-            flex: 1;
-            min-width: 200px;
+            padding: 8px 12px; border: 1px solid #334155; border-radius: 6px;
+            background: #0f172a; color: #e2e8f0; font-size: 0.95em; flex: 1; min-width: 200px;
         }
         .client-selector button {
-            padding: 8px 16px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: bold;
-            transition: background 0.2s;
+            padding: 8px 16px; background: #3b82f6; color: white; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: bold;
         }
         .client-selector button:hover { background: #2563eb; }
         .client-selector button:disabled { background: #475569; cursor: not-allowed; }
-        .client-profile-tag {
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
+        .client-profile-tag { padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
         .profile-high-risk { background: #7f1d1d; color: #fca5a5; }
         .profile-low-risk { background: #14532d; color: #86efac; }
-
         .section-title {
-            color: #94a3b8;
-            font-size: 0.95em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 20px 0 12px;
-            padding-bottom: 6px;
+            color: #94a3b8; font-size: 0.95em; text-transform: uppercase;
+            letter-spacing: 1px; margin: 20px 0 12px; padding-bottom: 6px;
             border-bottom: 1px solid #334155;
         }
         .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 12px;
-            margin-bottom: 10px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px; margin-bottom: 10px;
         }
-        .form-group label {
-            display: block;
-            font-size: 0.8em;
-            color: #94a3b8;
-            margin-bottom: 4px;
-        }
+        .form-group label { display: block; font-size: 0.8em; color: #94a3b8; margin-bottom: 4px; }
         .form-group input, .form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            background: #1e293b;
-            color: #e2e8f0;
-            font-size: 0.95em;
+            width: 100%; padding: 8px 12px; border: 1px solid #334155; border-radius: 6px;
+            background: #1e293b; color: #e2e8f0; font-size: 0.95em;
         }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #3b82f6;
-        }
-        /* Estilos IoT específicos */
-        .iot-section .form-group input {
-            border-color: #7c3aed;
-        }
-        .iot-section .form-group input:focus {
-            border-color: #a78bfa;
-        }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #3b82f6; }
+        .iot-section .form-group input { border-color: #7c3aed; }
+        .iot-section .form-group input:focus { border-color: #a78bfa; }
         .iot-badge {
-            display: inline-block;
-            font-size: 0.65em;
-            background: #7c3aed;
-            color: white;
-            padding: 1px 6px;
-            border-radius: 4px;
-            margin-left: 6px;
-            vertical-align: middle;
+            display: inline-block; font-size: 0.65em; background: #7c3aed; color: white;
+            padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle;
         }
-        /* Consentimiento */
         .consent-box {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 18px;
-            margin: 20px 0;
-            background: #1e293b;
-            border: 1px solid #7c3aed;
-            border-radius: 8px;
+            display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+            margin: 20px 0; background: #1e293b; border: 1px solid #7c3aed; border-radius: 8px;
         }
-        .consent-box input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            accent-color: #7c3aed;
-            cursor: pointer;
-        }
-        .consent-box label {
-            color: #e2e8f0;
-            font-size: 0.95em;
-            cursor: pointer;
-            user-select: none;
-        }
-        .consent-box .lock-icon {
-            font-size: 1.2em;
-        }
+        .consent-box input[type="checkbox"] { width: 20px; height: 20px; accent-color: #7c3aed; cursor: pointer; }
+        .consent-box label { color: #e2e8f0; font-size: 0.95em; cursor: pointer; user-select: none; }
+        .consent-box .lock-icon { font-size: 1.2em; }
         #predictBtn {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
+            display: block; width: 100%; padding: 14px; background: #3b82f6; color: white;
+            border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold;
+            cursor: pointer; transition: background 0.2s;
         }
         #predictBtn:hover { background: #2563eb; }
         #predictBtn:disabled { background: #475569; cursor: not-allowed; }
-        #result {
-            margin-top: 20px;
-            padding: 20px;
-            background: #1e293b;
-            border-radius: 12px;
-            min-height: 100px;
-        }
+        #result { margin-top: 20px; padding: 20px; background: #1e293b; border-radius: 12px; min-height: 100px; }
         .tech-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            background: #334155;
-            border-radius: 4px;
-            font-size: 0.75em;
-            margin-left: 5px;
+            display: inline-block; padding: 2px 8px; background: #334155;
+            border-radius: 4px; font-size: 0.75em; margin-left: 5px;
         }
-        .tech-badge.iot {
-            background: #7c3aed;
-            color: white;
-        }
+        .tech-badge.iot { background: #7c3aed; color: white; }
         .cashback-card {
-            margin-top: 20px;
-            padding: 16px 20px;
+            margin-top: 20px; padding: 16px 20px;
             background: linear-gradient(135deg, #7c3aed, #3b82f6);
-            border-radius: 10px;
-            text-align: center;
-            color: white;
+            border-radius: 10px; text-align: center; color: white;
         }
-        .cashback-card h3 {
-            margin-bottom: 8px;
-            font-size: 1.2em;
-        }
-        .cashback-card p {
-            font-size: 0.9em;
-            opacity: 0.95;
-        }
-        /* NUEVO: Log de actividad del Mock Bank */
+        .cashback-card h3 { margin-bottom: 8px; font-size: 1.2em; }
+        .cashback-card p { font-size: 0.9em; opacity: 0.95; }
         .api-log {
-            margin-top: 12px;
-            padding: 10px 14px;
-            background: #0f172a;
-            border: 1px solid #1e293b;
-            border-radius: 6px;
-            font-family: 'Consolas', monospace;
-            font-size: 0.78em;
-            color: #94a3b8;
-            max-height: 150px;
-            overflow-y: auto;
+            margin-top: 12px; padding: 10px 14px; background: #0f172a;
+            border: 1px solid #1e293b; border-radius: 6px;
+            font-family: 'Consolas', monospace; font-size: 0.78em; color: #94a3b8;
+            max-height: 150px; overflow-y: auto;
         }
         .api-log div { margin-bottom: 3px; }
         .log-get { color: #60a5fa; }
         .log-post { color: #f59e0b; }
         .log-ok { color: #22c55e; }
         .log-err { color: #ef4444; }
+
+        /* ═══ Vista Cliente (simulador de app bancaria) ═══ */
+        .phone-frame {
+            position: relative; max-width: 400px; margin: 0 auto;
+            background: #0b1220; border: 8px solid #1e293b; border-radius: 28px;
+            overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        }
+        .app-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 16px; background: #111c30; border-bottom: 1px solid #1e293b;
+            font-weight: bold;
+        }
+        .customer-select {
+            background: #0b1220; color: #e2e8f0; border: 1px solid #334155;
+            border-radius: 6px; padding: 4px 6px; font-size: 0.8em;
+        }
+        .icon-btn { background: none; border: none; font-size: 1.1em; cursor: pointer; }
+        .app-body { padding: 16px; }
+        .greeting { color: #94a3b8; margin-bottom: 10px; }
+        .balance-card {
+            background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+            border-radius: 14px; padding: 16px; color: white; margin-bottom: 14px;
+        }
+        .balance-label { font-size: 0.75em; opacity: .85; }
+        .balance-amount { font-size: 1.9em; font-weight: 800; margin: 2px 0; }
+        .balance-sub { font-size: 0.75em; opacity: .8; }
+        .quick-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+        .qa-btn {
+            flex: 1; padding: 10px 0; background: #1e293b; color: #e2e8f0;
+            border: 1px solid #334155; border-radius: 10px; cursor: pointer; font-size: 0.85em;
+        }
+        .section-label {
+            color: #94a3b8; font-size: 0.8em; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 8px;
+        }
+        .tx-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        .tx-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #111c30; border: 1px solid #1e293b; border-radius: 10px;
+            padding: 10px 12px; font-size: 0.88em;
+        }
+        .tx-amount.neg { color: #f87171; }
+        .tx-amount.pos { color: #4ade80; }
+        .tx-when { color: #64748b; font-size: 0.75em; display: block; }
+        .simulate-btn {
+            width: 100%; padding: 12px; background: #7c3aed; border: none;
+            border-radius: 10px; color: white; font-weight: bold; cursor: pointer;
+        }
+        .simulate-btn:disabled { background: #475569; cursor: not-allowed; }
+        .sim-status { min-height: 22px; margin-top: 10px; color: #94a3b8; font-size: 0.85em; text-align: center; }
+        .offer-card {
+            margin-top: 14px; background: linear-gradient(135deg, #7c3aed, #3b82f6);
+            border-radius: 14px; padding: 16px; color: white; text-align: center;
+            animation: fadeIn .5s ease;
+        }
+        .offer-card.neutral { background: #14532d; }
+        .offer-card h4 { margin: 6px 0; font-size: 1.05em; }
+        .offer-card p { font-size: 0.85em; opacity: .95; margin-bottom: 10px; }
+        .offer-emoji { font-size: 2em; }
+        .offer-locked {
+            margin-top: 14px; padding: 14px; border: 1px dashed #334155;
+            border-radius: 12px; color: #64748b; text-align: center; font-size: 0.85em;
+        }
+        .modal-overlay {
+            position: absolute; inset: 0; background: rgba(2,6,23,.78);
+            display: flex; align-items: center; justify-content: center;
+            padding: 18px; z-index: 20;
+        }
+        .modal-card {
+            background: #111c30; border: 1px solid #334155; border-radius: 16px;
+            padding: 20px; text-align: center; animation: fadeIn .35s ease;
+        }
+        .modal-card h3 { margin: 8px 0; }
+        .modal-card p { font-size: 0.85em; color: #cbd5e1; margin-bottom: 8px; }
+        .modal-privacy { font-size: 0.75em !important; color: #94a3b8 !important; }
+        .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+        .btn-primary {
+            padding: 10px 18px; background: #3b82f6; color: white; border: none;
+            border-radius: 8px; font-weight: bold; cursor: pointer;
+        }
+        .btn-ghost {
+            padding: 10px 18px; background: transparent; color: #94a3b8;
+            border: 1px solid #334155; border-radius: 8px; cursor: pointer;
+        }
+        .settings-panel {
+            position: absolute; top: 52px; right: 10px; width: 260px;
+            background: #111c30; border: 1px solid #334155; border-radius: 12px;
+            padding: 14px; z-index: 30; animation: fadeIn .25s ease;
+        }
+        .settings-row {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 10px; margin-bottom: 12px; font-size: 0.85em;
+        }
+        .settings-row small { color: #64748b; }
+        .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; inset: 0; background: #334155; border-radius: 999px; transition: .2s; }
+        .slider:before {
+            content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+            background: white; border-radius: 50%; transition: .2s;
+        }
+        .switch input:checked + .slider { background: #7c3aed; }
+        .switch input:checked + .slider:before { transform: translateX(20px); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     </style>
 </head>
 <body>
@@ -246,192 +229,164 @@
             <span class="tech-badge" style="background:#f59e0b;color:#0f172a;">Mock Bank</span>
         </p>
 
-        <div id="status">🟡 Cargando motor WASM...</div>
-        <div id="parity"></div>
-
-        <!-- ═══════════════════════════════════════════════ -->
-        <!-- NUEVO: SELECTOR DE CLIENTE (Mock Bank)         -->
-        <!-- ═══════════════════════════════════════════════ -->
-        <div class="client-selector">
-            <label>👤 Cliente:</label>
-            <select id="clientSelect">
-                <option value="CLIENT_001" selected>CLIENT_001 — Alto riesgo (44% churn)</option>
-                <option value="CLIENT_002">CLIENT_002 — Bajo riesgo (cliente estable)</option>
-            </select>
-            <button id="loadClientBtn">📥 Cargar datos del banco</button>
-            <span id="clientProfileTag" class="client-profile-tag profile-high-risk">
-                🔴 Alto riesgo
-            </span>
+        <!-- ═══ Toggle de vistas ═══ -->
+        <div class="view-toggle">
+            <button id="toggleOperator" class="active">👨‍💻 Vista Operador</button>
+            <button id="toggleCustomer">📱 Vista Cliente</button>
         </div>
 
-        <div id="apiLog" class="api-log"></div>
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- VISTA OPERADOR (consola técnica existente) -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="operatorView">
+            <div id="status">🟡 Cargando motor WASM...</div>
+            <div id="parity"></div>
 
-        <!-- ═══════════════════════════════════════════ -->
-        <!-- SECCIÓN 1: DATOS BANCARIOS (19 campos)     -->
-        <!-- ═══════════════════════════════════════════ -->
-        <div class="section-title">🏦 Datos Bancarios</div>
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Customer_Age</label>
-                <input type="number" id="Customer_Age" value="45">
-            </div>
-            <div class="form-group">
-                <label>Gender</label>
-                <select id="Gender">
-                    <option value="F">F</option>
-                    <option value="M">M</option>
+            <div class="client-selector">
+                <label>👤 Cliente:</label>
+                <select id="clientSelect">
+                    <option value="CLIENT_001" selected>CLIENT_001 — Alto riesgo (44% churn)</option>
+                    <option value="CLIENT_002">CLIENT_002 — Bajo riesgo (cliente estable)</option>
                 </select>
+                <button id="loadClientBtn">📥 Cargar datos del banco</button>
+                <span id="clientProfileTag" class="client-profile-tag profile-high-risk">🔴 Alto riesgo</span>
             </div>
-            <div class="form-group">
-                <label>Dependent_count</label>
-                <input type="number" id="Dependent_count" value="3">
+
+            <div id="apiLog" class="api-log"></div>
+
+            <div class="section-title">🏦 Datos Bancarios</div>
+            <div class="form-grid">
+                <div class="form-group"><label>Customer_Age</label><input type="number" id="Customer_Age" value="45"></div>
+                <div class="form-group"><label>Gender</label><select id="Gender"><option value="F">F</option><option value="M">M</option></select></div>
+                <div class="form-group"><label>Dependent_count</label><input type="number" id="Dependent_count" value="3"></div>
+                <div class="form-group"><label>Education_Level</label><select id="Education_Level"><option value="Graduate" selected>Graduate</option><option value="High School">High School</option><option value="College">College</option><option value="Uneducated">Uneducated</option><option value="Post-Graduate">Post-Graduate</option><option value="Doctorate">Doctorate</option><option value="Unknown">Unknown</option></select></div>
+                <div class="form-group"><label>Marital_Status</label><select id="Marital_Status"><option value="Married" selected>Married</option><option value="Single">Single</option><option value="Divorced">Divorced</option><option value="Unknown">Unknown</option></select></div>
+                <div class="form-group"><label>Income_Category</label><select id="Income_Category"><option value="$60K - $80K" selected>$60K - $80K</option><option value="Less than $40K">Less than $40K</option><option value="$40K - $60K">$40K - $60K</option><option value="$80K - $120K">$80K - $120K</option><option value="$120K +">$120K +</option><option value="Unknown">Unknown</option></select></div>
+                <div class="form-group"><label>Card_Category</label><select id="Card_Category"><option value="Blue" selected>Blue</option><option value="Silver">Silver</option><option value="Gold">Gold</option><option value="Platinum">Platinum</option></select></div>
+                <div class="form-group"><label>Months_on_book</label><input type="number" id="Months_on_book" value="39"></div>
+                <div class="form-group"><label>Total_Relationship_Count</label><input type="number" id="Total_Relationship_Count" value="5"></div>
+                <div class="form-group"><label>Months_Inactive_12_mon</label><input type="number" id="Months_Inactive_12_mon" value="2"></div>
+                <div class="form-group"><label>Contacts_Count_12_mon</label><input type="number" id="Contacts_Count_12_mon" value="3"></div>
+                <div class="form-group"><label>Credit_Limit</label><input type="number" id="Credit_Limit" value="12691"></div>
+                <div class="form-group"><label>Total_Revolving_Bal</label><input type="number" id="Total_Revolving_Bal" value="777"></div>
+                <div class="form-group"><label>Avg_Open_To_Buy</label><input type="number" id="Avg_Open_To_Buy" value="11914"></div>
+                <div class="form-group"><label>Total_Amt_Chng_Q4_Q1</label><input type="number" id="Total_Amt_Chng_Q4_Q1" value="0.75" step="0.01"></div>
+                <div class="form-group"><label>Total_Trans_Amt</label><input type="number" id="Total_Trans_Amt" value="3500"></div>
+                <div class="form-group"><label>Total_Trans_Ct</label><input type="number" id="Total_Trans_Ct" value="45"></div>
+                <div class="form-group"><label>Total_Ct_Chng_Q4_Q1</label><input type="number" id="Total_Ct_Chng_Q4_Q1" value="0.61" step="0.01"></div>
+                <div class="form-group"><label>Avg_Utilization_Ratio</label><input type="number" id="Avg_Utilization_Ratio" value="0.22" step="0.01"></div>
             </div>
-            <div class="form-group">
-                <label>Education_Level</label>
-                <select id="Education_Level">
-                    <option value="Graduate" selected>Graduate</option>
-                    <option value="High School">High School</option>
-                    <option value="College">College</option>
-                    <option value="Uneducated">Uneducated</option>
-                    <option value="Post-Graduate">Post-Graduate</option>
-                    <option value="Doctorate">Doctorate</option>
-                    <option value="Unknown">Unknown</option>
-                </select>
+
+            <div class="section-title iot-section">
+                📡 Datos IoT (App + POS)
+                <span class="iot-badge">Requiere consentimiento</span>
             </div>
-            <div class="form-group">
-                <label>Marital_Status</label>
-                <select id="Marital_Status">
-                    <option value="Married" selected>Married</option>
-                    <option value="Single">Single</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Unknown">Unknown</option>
-                </select>
+            <div class="form-grid iot-section">
+                <div class="form-group"><label>app_open_count_30d</label><input type="number" id="app_open_count_30d" value="76" min="0" max="365"></div>
+                <div class="form-group"><label>contactless_usage_count_30d</label><input type="number" id="contactless_usage_count_30d" value="58" min="0" max="500"></div>
+                <div class="form-group"><label>payment_flow_abandon_count_30d</label><input type="number" id="payment_flow_abandon_count_30d" value="5" min="0" max="100"></div>
+                <div class="form-group"><label>nfc_failed_attempts_30d</label><input type="number" id="nfc_failed_attempts_30d" value="3" min="0" max="100"></div>
+                <div class="form-group"><label>app_crash_count_30d</label><input type="number" id="app_crash_count_30d" value="2" min="0" max="100"></div>
+                <div class="form-group"><label>pos_latency_p95_ms</label><input type="number" id="pos_latency_p95_ms" value="1500" min="50" max="20000"></div>
             </div>
-            <div class="form-group">
-                <label>Income_Category</label>
-                <select id="Income_Category">
-                    <option value="$60K - $80K" selected>$60K - $80K</option>
-                    <option value="Less than $40K">Less than $40K</option>
-                    <option value="$40K - $60K">$40K - $60K</option>
-                    <option value="$80K - $120K">$80K - $120K</option>
-                    <option value="$120K +">$120K +</option>
-                    <option value="Unknown">Unknown</option>
-                </select>
+
+            <div class="consent-box">
+                <span class="lock-icon">🔒</span>
+                <input type="checkbox" id="consentCheckbox">
+                <label for="consentCheckbox">
+                    Acepto el uso de mis <strong>datos IoT</strong> (app + POS)
+                    para inferencia local en mi navegador.
+                    <small style="color: #94a3b8;">Los datos nunca salen de mi dispositivo.</small>
+                </label>
             </div>
-            <div class="form-group">
-                <label>Card_Category</label>
-                <select id="Card_Category">
-                    <option value="Blue" selected>Blue</option>
-                    <option value="Silver">Silver</option>
-                    <option value="Gold">Gold</option>
-                    <option value="Platinum">Platinum</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Months_on_book</label>
-                <input type="number" id="Months_on_book" value="39">
-            </div>
-            <div class="form-group">
-                <label>Total_Relationship_Count</label>
-                <input type="number" id="Total_Relationship_Count" value="5">
-            </div>
-            <div class="form-group">
-                <label>Months_Inactive_12_mon</label>
-                <input type="number" id="Months_Inactive_12_mon" value="2">
-            </div>
-            <div class="form-group">
-                <label>Contacts_Count_12_mon</label>
-                <input type="number" id="Contacts_Count_12_mon" value="3">
-            </div>
-            <div class="form-group">
-                <label>Credit_Limit</label>
-                <input type="number" id="Credit_Limit" value="12691">
-            </div>
-            <div class="form-group">
-                <label>Total_Revolving_Bal</label>
-                <input type="number" id="Total_Revolving_Bal" value="777">
-            </div>
-            <div class="form-group">
-                <label>Avg_Open_To_Buy</label>
-                <input type="number" id="Avg_Open_To_Buy" value="11914">
-            </div>
-            <div class="form-group">
-                <label>Total_Amt_Chng_Q4_Q1</label>
-                <input type="number" id="Total_Amt_Chng_Q4_Q1" value="0.75" step="0.01">
-            </div>
-            <div class="form-group">
-                <label>Total_Trans_Amt</label>
-                <input type="number" id="Total_Trans_Amt" value="3500">
-            </div>
-            <div class="form-group">
-                <label>Total_Trans_Ct</label>
-                <input type="number" id="Total_Trans_Ct" value="45">
-            </div>
-            <div class="form-group">
-                <label>Total_Ct_Chng_Q4_Q1</label>
-                <input type="number" id="Total_Ct_Chng_Q4_Q1" value="0.61" step="0.01">
-            </div>
-            <div class="form-group">
-                <label>Avg_Utilization_Ratio</label>
-                <input type="number" id="Avg_Utilization_Ratio" value="0.22" step="0.01">
+
+            <button id="predictBtn">🔮 Predecir Churn</button>
+
+            <div id="result">
+                <div style="text-align: center; color: #64748b; padding: 20px;">
+                    Ingresa los datos del cliente, acepta el consentimiento IoT
+                    y haz clic en "Predecir"
+                </div>
             </div>
         </div>
 
         <!-- ═══════════════════════════════════════════ -->
-        <!-- SECCIÓN 2: DATOS IoT (6 campos nuevos)     -->
+        <!-- VISTA CLIENTE (simulador de app bancaria)  -->
         <!-- ═══════════════════════════════════════════ -->
-        <div class="section-title iot-section">
-            📡 Datos IoT (App + POS)
-            <span class="iot-badge">Requiere consentimiento</span>
-        </div>
-        <div class="form-grid iot-section">
-            <div class="form-group">
-                <label>app_open_count_30d</label>
-                <input type="number" id="app_open_count_30d" value="76" min="0" max="365">
-            </div>
-            <div class="form-group">
-                <label>contactless_usage_count_30d</label>
-                <input type="number" id="contactless_usage_count_30d" value="58" min="0" max="500">
-            </div>
-            <div class="form-group">
-                <label>payment_flow_abandon_count_30d</label>
-                <input type="number" id="payment_flow_abandon_count_30d" value="5" min="0" max="100">
-            </div>
-            <div class="form-group">
-                <label>nfc_failed_attempts_30d</label>
-                <input type="number" id="nfc_failed_attempts_30d" value="3" min="0" max="100">
-            </div>
-            <div class="form-group">
-                <label>app_crash_count_30d</label>
-                <input type="number" id="app_crash_count_30d" value="2" min="0" max="100">
-            </div>
-            <div class="form-group">
-                <label>pos_latency_p95_ms</label>
-                <input type="number" id="pos_latency_p95_ms" value="1500" min="50" max="20000">
-            </div>
-        </div>
+        <div id="customerView" hidden>
+            <div class="phone-frame">
+                <div class="app-header">
+                    <div>🏦 Mi Banco</div>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <select id="customerSelect" class="customer-select">
+                            <option value="CLIENT_001" selected>Ana García</option>
+                            <option value="CLIENT_002">Luis Pérez</option>
+                        </select>
+                        <button id="settingsBtn" class="icon-btn" title="Ajustes">⚙️</button>
+                    </div>
+                </div>
 
-        <!-- ═══════════════════════════════════════════ -->
-        <!-- CONSENTIMIENTO (GDPR / Privacy)            -->
-        <!-- ═══════════════════════════════════════════ -->
-        <div class="consent-box">
-            <span class="lock-icon">🔒</span>
-            <input type="checkbox" id="consentCheckbox">
-            <label for="consentCheckbox">
-                Acepto el uso de mis <strong>datos IoT</strong> (app + POS) 
-                para inferencia local en mi navegador. 
-                <small style="color: #94a3b8;">
-                    Los datos nunca salen de mi dispositivo.
-                </small>
-            </label>
-        </div>
+                <div class="app-body">
+                    <div class="greeting">Hola, <span id="customerName">Ana</span> 👋</div>
 
-        <button id="predictBtn">🔮 Predecir Churn</button>
+                    <div class="balance-card">
+                        <div class="balance-label">Saldo disponible</div>
+                        <div class="balance-amount" id="balanceAmount">$12,450.00</div>
+                        <div class="balance-sub" id="balanceCard">Tarjeta Blue •••• 4821</div>
+                    </div>
 
-        <div id="result">
-            <div style="text-align: center; color: #64748b; padding: 20px;">
-                Ingresa los datos del cliente, acepta el consentimiento IoT 
-                y haz clic en "Predecir"
+                    <div class="quick-actions">
+                        <button class="qa-btn">⇄ Transferir</button>
+                        <button class="qa-btn">🧾 Pagar</button>
+                        <button class="qa-btn">📲 Recargar</button>
+                    </div>
+
+                    <div class="section-label">Últimos movimientos</div>
+                    <div class="tx-list" id="txList"></div>
+
+                    <div id="offerZone"></div>
+
+                    <button id="simulateBtn" class="simulate-btn" hidden>
+                        📱 Simular 30 días de uso
+                    </button>
+                    <div id="simStatus" class="sim-status"></div>
+                </div>
+
+                <!-- Modal de consentimiento (lenguaje de beneficios) -->
+                <div id="consentModal" class="modal-overlay" hidden>
+                    <div class="modal-card">
+                        <div class="modal-emoji" style="font-size:2em;">🌟</div>
+                        <h3>¿Quieres una mejor experiencia?</h3>
+                        <p>
+                            Permítenos analizar cómo usas la app (aperturas, pagos,
+                            intentos) para ofrecerte <strong>beneficios personalizados
+                            en el futuro</strong>.
+                        </p>
+                        <p class="modal-privacy">
+                            🔒 El análisis ocurre en tu dispositivo; tus datos nunca
+                            salen de tu teléfono. Puedes revocarlo cuando quieras en Ajustes.
+                        </p>
+                        <div class="modal-actions">
+                            <button id="consentAccept" class="btn-primary">Aceptar</button>
+                            <button id="consentDecline" class="btn-ghost">Ahora no</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel de ajustes (revocación GDPR) -->
+                <div id="settingsPanel" class="settings-panel" hidden>
+                    <div class="settings-row">
+                        <span>
+                            Beneficios personalizados<br>
+                            <small>Usar mis datos de uso para ofertas</small>
+                        </span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingsConsentToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <button id="closeSettings" class="btn-ghost" style="width:100%">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>
