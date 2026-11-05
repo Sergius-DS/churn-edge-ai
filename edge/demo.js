@@ -3,8 +3,11 @@
 //  - 👨‍💻 Operador: consola técnica (25 campos, log API, paridad, métricas)
 //  - 📱 Cliente: simulador de app bancaria (consentimiento por beneficios,
 //    oferta de retención; NUNCA muestra probabilidad ni features)
+//
+// Arquitectura WASM: init_engine cachea modelo+contrato 1 vez (OnceLock);
+// predict_churn / verify_parity usan firmas zero-copy ultrarrápidas.
 
-import init, { predict_churn, verify_parity } from './churn-wasm/pkg/churn_wasm.js';
+import init, { init_engine, predict_churn, verify_parity } from './churn-wasm/pkg/churn_wasm.js';
 
 // ─── Configuración del Mock Bank ───
 const MOCK_BANK_URL = 'http://localhost:8000';
@@ -54,6 +57,11 @@ async function initialize() {
         contractJson = await contractResp.text();
         console.log('✅ Contrato IoT cargado:', contractJson.length, 'bytes');
 
+        // 🚀 REFACTOR SENIOR: Cachea modelo+contrato en el OnceLock de Rust (1 sola vez)
+        // A partir de aquí, predict_churn y verify_parity usan el caché global (zero-copy).
+        init_engine(modelJson, contractJson);
+        console.log('✅ Motor cacheado (init_engine)');
+
         wasmReady = true;
         document.getElementById('status').textContent =
             '🟢 Motor WASM IoT listo (34 features)';
@@ -76,23 +84,32 @@ async function initialize() {
 async function loadFeaturesFromBank(clientId) {
     const btn = document.getElementById('loadClientBtn');
     if (btn) btn.disabled = true;
+    let features;
+    let source = '';
     try {
         const resp = await fetch(`${MOCK_BANK_URL}/api/features/${clientId}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
-        const features = data.features;
-        for (const [key, value] of Object.entries(features)) {
-            const el = document.getElementById(key);
-            if (el) el.value = value;
-        }
-        logApi('GET', `/api/features/${clientId}`, 'ok',
-            `— ${Object.keys(features).length} campos cargados`);
-        updateProfileTag(clientId);
-        currentClientId = clientId;
+        features = data.features;
+        source = '— Mock Bank';
     } catch (err) {
-        logApi('GET', `/api/features/${clientId}`, 'err', `— ${err.message}`);
-        console.error('Error cargando features del banco:', err);
+        // 🔄 Fallback offline (GitHub Pages sin Mock Bank corriendo)
+        features = FALLBACK_FEATURES[clientId];
+        source = '— offline: fallback embebido';
+        console.warn('Mock Bank no disponible, usando fallback embebido:', err.message);
     } finally {
+        if (features) {
+            for (const [key, value] of Object.entries(features)) {
+                const el = document.getElementById(key);
+                if (el) el.value = value;
+            }
+            logApi('GET', `/api/features/${clientId}`, 'ok',
+                `${source} — ${Object.keys(features).length} campos`);
+            updateProfileTag(clientId);
+            currentClientId = clientId;
+        } else {
+            logApi('GET', `/api/features/${clientId}`, 'err', '— sin fallback disponible');
+        }
         if (btn) btn.disabled = false;
     }
 }
@@ -102,7 +119,11 @@ async function checkPreviousConsent(clientId) {
         const resp = await fetch(`${MOCK_BANK_URL}/api/consent/${clientId}`);
         if (!resp.ok) {
             logApi('GET', `/api/consent/${clientId}`, 'err', `— HTTP ${resp.status}`);
-            return false;
+            // Fallback: leer de localStorage
+            const stored = localStorage.getItem('consent_' + clientId) === 'true';
+            const checkbox = document.getElementById('consentCheckbox');
+            if (checkbox) checkbox.checked = stored;
+            return stored;
         }
         const data = await resp.json();
         const checkbox = document.getElementById('consentCheckbox');
@@ -111,8 +132,12 @@ async function checkPreviousConsent(clientId) {
             data.consent ? `— consentimiento previo (${data.granted_at})` : '— sin consentimiento registrado');
         return data.consent;
     } catch (err) {
-        logApi('GET', `/api/consent/${clientId}`, 'err', `— ${err.message}`);
-        return false;
+        // 🔄 Fallback offline: persistencia en localStorage
+        const stored = localStorage.getItem('consent_' + clientId) === 'true';
+        const checkbox = document.getElementById('consentCheckbox');
+        if (checkbox) checkbox.checked = stored;
+        logApi('GET', `/api/consent/${clientId}`, 'ok', '— offline: localStorage');
+        return stored;
     }
 }
 
@@ -128,8 +153,10 @@ async function registerConsentInBank(consent, clientId) {
             `— ${consent ? 'otorgado' : 'revocado'} para ${clientId}`);
         return true;
     } catch (err) {
-        logApi('POST', '/api/consent', 'err', `— ${err.message}`);
-        return false;
+        // 🔄 Fallback offline: persistencia en localStorage
+        localStorage.setItem('consent_' + clientId, consent ? 'true' : 'false');
+        logApi('POST', '/api/consent', 'ok', '— offline: localStorage');
+        return true;
     }
 }
 
@@ -182,7 +209,8 @@ function handlePredict() {
     };
 
     const startTime = performance.now();
-    const resultJson = predict_churn(JSON.stringify(input), modelJson, contractJson, consent);
+    // 🚀 NUEVA FIRMA: solo input + consentimiento (modelo/contrato ya están en el OnceLock de Rust)
+    const resultJson = predict_churn(JSON.stringify(input), consent);
     const endTime = performance.now();
     const result = JSON.parse(resultJson);
 
@@ -238,10 +266,10 @@ async function runParityCheck() {
         let allPassed = true;
         let results = [];
         for (let i = 0; i < nCheck; i++) {
+            // 🚀 NUEVA FIRMA: sin modelJson (usa el OnceLock cacheado)
             const resultJson = verify_parity(
                 JSON.stringify(parity.features[i]),
                 parity.expected_proba[i],
-                modelJson,
                 1e-4
             );
             const result = JSON.parse(resultJson);
@@ -294,6 +322,38 @@ const CUSTOMER_PROFILES = {
     },
 };
 
+// 🔄 Fallback embebido: features idénticas al Mock Bank para cuando esté offline (GitHub Pages)
+const FALLBACK_FEATURES = {
+    CLIENT_001: {
+        Customer_Age: 45, Gender: "F", Dependent_count: 3,
+        Education_Level: "Graduate", Marital_Status: "Married",
+        Income_Category: "$60K - $80K", Card_Category: "Blue",
+        Months_on_book: 39, Total_Relationship_Count: 5,
+        Months_Inactive_12_mon: 2, Contacts_Count_12_mon: 3,
+        Credit_Limit: 12691.0, Total_Revolving_Bal: 777,
+        Avg_Open_To_Buy: 11914.0, Total_Amt_Chng_Q4_Q1: 0.8,
+        Total_Trans_Amt: 3500, Total_Trans_Ct: 45,
+        Total_Ct_Chng_Q4_Q1: 0.69, Avg_Utilization_Ratio: 0.22,
+        app_open_count_30d: 76, contactless_usage_count_30d: 58,
+        payment_flow_abandon_count_30d: 5, nfc_failed_attempts_30d: 3,
+        app_crash_count_30d: 2, pos_latency_p95_ms: 1500,
+    },
+    CLIENT_002: {
+        Customer_Age: 32, Gender: "M", Dependent_count: 1,
+        Education_Level: "High School", Marital_Status: "Single",
+        Income_Category: "$40K - $60K", Card_Category: "Silver",
+        Months_on_book: 24, Total_Relationship_Count: 3,
+        Months_Inactive_12_mon: 4, Contacts_Count_12_mon: 1,
+        Credit_Limit: 8500.0, Total_Revolving_Bal: 1200,
+        Avg_Open_To_Buy: 7300.0, Total_Amt_Chng_Q4_Q1: 1.2,
+        Total_Trans_Amt: 5200, Total_Trans_Ct: 68,
+        Total_Ct_Chng_Q4_Q1: 0.85, Avg_Utilization_Ratio: 0.35,
+        app_open_count_30d: 120, contactless_usage_count_30d: 95,
+        payment_flow_abandon_count_30d: 2, nfc_failed_attempts_30d: 1,
+        app_crash_count_30d: 0, pos_latency_p95_ms: 800,
+    },
+};
+
 let customerConsent = false;
 let customerInitialized = false;
 const consentDeclined = new Set();
@@ -332,11 +392,7 @@ function updateCustomerUI() {
     const simBtn = document.getElementById('simulateBtn');
     const zone = document.getElementById('offerZone');
 
-    // El modal SOLO se muestra si:
-    // 1. No hay consentimiento previo
-    // 2. El cliente NO ha respondido al modal en esta sesión
     const shouldShowModal = !customerConsent && !consentDeclined.has(clientId);
-    
     modal.hidden = !shouldShowModal;
 
     if (customerConsent) {
@@ -355,8 +411,7 @@ async function refreshCustomerConsent() {
     customerConsent = consent === true;
     document.getElementById('settingsConsentToggle').checked = customerConsent;
     updateCustomerUI();
-    
-    // NUEVO: Si ya hay consentimiento previo, ejecutar simulación automáticamente
+
     if (customerConsent) {
         await simulateUsage();
     }
@@ -364,37 +419,26 @@ async function refreshCustomerConsent() {
 
 async function handleConsentDecision(accepted) {
     const clientId = document.getElementById('customerSelect').value;
-    
-    // 1. Ocultar modal INMEDIATAMENTE (sin esperar nada)
     document.getElementById('consentModal').hidden = true;
-    
-    // 2. Marcar que este cliente ya respondió al modal (para esta sesión)
     consentDeclined.add(clientId);
-    
+
     try {
         if (accepted) {
             await registerConsentInBank(true, clientId);
             customerConsent = true;
             document.getElementById('settingsConsentToggle').checked = true;
-            
-            // Mostrar botón de simulación
             document.getElementById('simulateBtn').hidden = false;
             document.getElementById('offerZone').innerHTML = '';
-            
-            // Ejecutar simulación automáticamente
             await simulateUsage();
         } else {
             await registerConsentInBank(false, clientId);
             customerConsent = false;
             document.getElementById('settingsConsentToggle').checked = false;
-            
-            // Ocultar botón de simulación y mostrar mensaje de bloqueo
             document.getElementById('simulateBtn').hidden = true;
             document.getElementById('offerZone').innerHTML = lockedOffersHtml();
         }
     } catch (err) {
         console.error('Error registrando consentimiento:', err);
-        // Aún así, el modal permanece oculto
     }
 }
 
@@ -445,17 +489,23 @@ async function simulateUsage() {
     }
     try {
         const clientId = document.getElementById('customerSelect').value;
-        const resp = await fetch(`${MOCK_BANK_URL}/api/features/${clientId}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        const raw = { ...data.features };
+        let raw;
+        try {
+            const resp = await fetch(`${MOCK_BANK_URL}/api/features/${clientId}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            raw = { ...data.features };
+        } catch {
+            // 🔄 Fallback offline
+            raw = { ...FALLBACK_FEATURES[clientId] };
+        }
         delete raw.client_id;
 
-        const resultJson = predict_churn(JSON.stringify(raw), modelJson, contractJson, true);
+        // 🚀 NUEVA FIRMA: solo input + consentimiento
+        const resultJson = predict_churn(JSON.stringify(raw), true);
         const result = JSON.parse(resultJson);
         if (result.error) throw new Error(result.error);
 
-        // Solo consola: el cliente NUNCA ve la probabilidad
         console.log('[customer-view] inferencia interna (no mostrada):',
             result.probability_pct.toFixed(2) + '%');
 

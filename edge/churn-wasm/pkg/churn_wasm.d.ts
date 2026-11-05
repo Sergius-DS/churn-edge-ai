@@ -2,36 +2,35 @@
 /* eslint-disable */
 
 /**
- * Función principal exportada a JavaScript.
- *
- * # Argumentos
- * - `input_json`: JSON string con los datos crudos del cliente
- * - `model_json`: JSON string del modelo XGBoost
- * - `contract_json`: JSON string del contrato de inferencia
- * - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
- *
- * # Retorna
- * JSON string con la predicción + regla de negocio de retención.
+ * 🚀 FUNCIÓN DE INICIALIZACIÓN (Llamar UNA SOLA VEZ desde JS al cargar la página)
+ * Parsea el modelo y el contrato y los guarda en memoria caché.
  */
-export function predict_churn(input_json: string, model_json: string, contract_json: string, consent: boolean): string;
+export function init_engine(model_json: string, contract_json: string): void;
 
 /**
- * Función auxiliar para validar paridad con Python (sin consentimiento).
+ * 🚀 FUNCIÓN DE INFERENCIA (Ultra-rápida, sin parsing de modelo)
+ * ✅ Ya no recibe model_json ni contract_json. Usa el caché global.
  */
-export function predict_from_scaled_features(features_json: string, model_json: string): string;
+export function predict_churn(input_json: string, consent: boolean): string;
 
 /**
- * Función de verificación de paridad.
+ * Función auxiliar para validar paridad con Python (usa el caché).
  */
-export function verify_parity(features_json: string, expected_proba: number, model_json: string, tolerance: number): string;
+export function predict_from_scaled_features(features_json: string): string;
+
+/**
+ * Función de verificación de paridad (usa el caché).
+ */
+export function verify_parity(features_json: string, expected_proba: number, tolerance: number): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly predict_churn: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-    readonly predict_from_scaled_features: (a: number, b: number, c: number, d: number, e: number) => void;
-    readonly verify_parity: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly init_engine: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly predict_churn: (a: number, b: number, c: number, d: number) => void;
+    readonly predict_from_scaled_features: (a: number, b: number, c: number) => void;
+    readonly verify_parity: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;

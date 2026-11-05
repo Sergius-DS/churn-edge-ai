@@ -1,108 +1,132 @@
 /* @ts-self-types="./churn_wasm.d.ts" */
 
 /**
- * Función principal exportada a JavaScript.
- *
- * # Argumentos
- * - `input_json`: JSON string con los datos crudos del cliente
- * - `model_json`: JSON string del modelo XGBoost
- * - `contract_json`: JSON string del contrato de inferencia
- * - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
- *
- * # Retorna
- * JSON string con la predicción + regla de negocio de retención.
- * @param {string} input_json
+ * 🚀 FUNCIÓN DE INICIALIZACIÓN (Llamar UNA SOLA VEZ desde JS al cargar la página)
+ * Parsea el modelo y el contrato y los guarda en memoria caché.
  * @param {string} model_json
  * @param {string} contract_json
+ */
+export function init_engine(model_json, contract_json) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(model_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(contract_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.init_engine(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        if (r1) {
+            throw takeObject(r0);
+        }
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * 🚀 FUNCIÓN DE INFERENCIA (Ultra-rápida, sin parsing de modelo)
+ * ✅ Ya no recibe model_json ni contract_json. Usa el caché global.
+ * @param {string} input_json
  * @param {boolean} consent
  * @returns {string}
  */
-export function predict_churn(input_json, model_json, contract_json, consent) {
-    let deferred4_0;
-    let deferred4_1;
+export function predict_churn(input_json, consent) {
+    let deferred2_0;
+    let deferred2_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passStringToWasm0(input_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(model_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-        const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(contract_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-        const len2 = WASM_VECTOR_LEN;
-        wasm.predict_churn(retptr, ptr0, len0, ptr1, len1, ptr2, len2, consent);
+        wasm.predict_churn(retptr, ptr0, len0, consent);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred4_0 = r0;
-        deferred4_1 = r1;
+        deferred2_0 = r0;
+        deferred2_1 = r1;
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
     }
 }
 
 /**
- * Función auxiliar para validar paridad con Python (sin consentimiento).
+ * Función auxiliar para validar paridad con Python (usa el caché).
  * @param {string} features_json
- * @param {string} model_json
  * @returns {string}
  */
-export function predict_from_scaled_features(features_json, model_json) {
-    let deferred3_0;
-    let deferred3_1;
+export function predict_from_scaled_features(features_json) {
+    let deferred2_0;
+    let deferred2_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passStringToWasm0(features_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(model_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-        const len1 = WASM_VECTOR_LEN;
-        wasm.predict_from_scaled_features(retptr, ptr0, len0, ptr1, len1);
+        wasm.predict_from_scaled_features(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred3_0 = r0;
-        deferred3_1 = r1;
+        deferred2_0 = r0;
+        deferred2_1 = r1;
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
     }
 }
 
 /**
- * Función de verificación de paridad.
+ * Función de verificación de paridad (usa el caché).
  * @param {string} features_json
  * @param {number} expected_proba
- * @param {string} model_json
  * @param {number} tolerance
  * @returns {string}
  */
-export function verify_parity(features_json, expected_proba, model_json, tolerance) {
-    let deferred3_0;
-    let deferred3_1;
+export function verify_parity(features_json, expected_proba, tolerance) {
+    let deferred2_0;
+    let deferred2_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passStringToWasm0(features_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(model_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-        const len1 = WASM_VECTOR_LEN;
-        wasm.verify_parity(retptr, ptr0, len0, expected_proba, ptr1, len1, tolerance);
+        wasm.verify_parity(retptr, ptr0, len0, expected_proba, tolerance);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred3_0 = r0;
-        deferred3_1 = r1;
+        deferred2_0 = r0;
+        deferred2_1 = r1;
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
     }
 }
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbindgen_generic_0000000000000001: function(arg0, arg1) {
+            // Cast intrinsic for `Ref(String) -> Externref`.
+            const ret = getStringFromWasm0(arg0, arg1);
+            return addHeapObject(ret);
+        },
     };
     return {
         __proto__: null,
         "./churn_wasm_bg.js": import0,
     };
+}
+
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
+
+    heap[idx] = obj;
+    return idx;
+}
+
+function dropObject(idx) {
+    if (idx < 1028) return;
+    heap[idx] = heap_next;
+    heap_next = idx;
 }
 
 let cachedDataViewMemory0 = null;
@@ -124,6 +148,13 @@ function getUint8ArrayMemory0() {
     }
     return cachedUint8ArrayMemory0;
 }
+
+function getObject(idx) { return heap[idx]; }
+
+let heap = new Array(1024).fill(undefined);
+heap.push(undefined, null, true, false);
+
+let heap_next = heap.length;
 
 function passStringToWasm0(arg, malloc, realloc) {
     if (realloc === undefined) {
@@ -160,6 +191,12 @@ function passStringToWasm0(arg, malloc, realloc) {
 
     WASM_VECTOR_LEN = offset;
     return ptr;
+}
+
+function takeObject(idx) {
+    const ret = getObject(idx);
+    dropObject(idx);
+    return ret;
 }
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
