@@ -3,9 +3,11 @@
 // El valor esperado lo genera Python (scripts/validate_parity_raw.py).
 
 use std::fs;
+use churn_wasm::{init_engine, predict_churn}; // ✅ 1. Importar el inicializador
 
 #[test]
 fn raw_input_parity_with_python() {
+    // ─── Leer fixtures desde disco ───
     let case_json = fs::read_to_string("../../edge/raw_parity_case.json")
         .expect("Falta edge/raw_parity_case.json — ejecuta scripts/validate_parity_raw.py");
     let case: serde_json::Value = serde_json::from_str(&case_json).unwrap();
@@ -13,13 +15,20 @@ fn raw_input_parity_with_python() {
     let raw = case["raw"].to_string();
     let expected = case["expected_proba"].as_f64().unwrap();
 
-    let model = fs::read_to_string("../../edge/xgb_model_edge.json").unwrap();
-    let contract = fs::read_to_string("../../edge/inference_contract_edge.json").unwrap();
+    let model_json = fs::read_to_string("../../edge/xgb_model_edge.json").unwrap();
+    let contract_json = fs::read_to_string("../../edge/inference_contract_edge.json").unwrap();
 
-    let out = churn_wasm::predict_churn(&raw, &model, &contract, true);
+    // ✅ 2. INICIALIZAR EL MOTOR (Cachea el modelo y contrato en el OnceLock global)
+    // Esto simula lo que haría el navegador al cargar la página web.
+    init_engine(&model_json, &contract_json).expect("Failed to initialize WASM engine");
+
+    // ✅ 3. INFERENCIA (Usa la nueva firma ultra-rápida sin JSONs pesados)
+    let out = predict_churn(&raw, true);
+    
     let res: serde_json::Value = serde_json::from_str(&out)
         .expect("predict_churn devolvió JSON inválido");
 
+    // ─── Verificaciones ───
     assert!(
         !res.as_object().unwrap().contains_key("error"),
         "predict_churn falló: {}",

@@ -9,6 +9,12 @@ mod preprocessing;
 
 use wasm_bindgen::prelude::*;
 use serde_json::Value;
+use std::sync::OnceLock;
+
+// ─── ESTADO GLOBAL (Cache del Motor) ───
+// En WASM, OnceLock es seguro y extremadamente rápido.
+static MODEL: OnceLock<model::XgbModel> = OnceLock::new();
+static CONTRACT: OnceLock<contract::InferenceContract> = OnceLock::new();
 
 /// Resultado de la predicción como JSON string.
 #[derive(serde::Serialize)]
@@ -20,42 +26,40 @@ struct PredictionResult {
     threshold: f64,
     n_features: usize,
     n_trees: usize,
-    /// Nueva flag: si se debe ofrecer cashback (proba > threshold + consentimiento)
     offer_retention: bool,
     consent_granted: bool,
 }
 
-/// Función principal exportada a JavaScript.
-///
-/// # Argumentos
-/// - `input_json`: JSON string con los datos crudos del cliente
-/// - `model_json`: JSON string del modelo XGBoost
-/// - `contract_json`: JSON string del contrato de inferencia
-/// - `consent`: bool - si el usuario dio consentimiento para usar datos IoT
-///
-/// # Retorna
-/// JSON string con la predicción + regla de negocio de retención.
+/// 🚀 FUNCIÓN DE INICIALIZACIÓN (Llamar UNA SOLA VEZ desde JS al cargar la página)
+/// Parsea el modelo y el contrato y los guarda en memoria caché.
 #[wasm_bindgen]
-pub fn predict_churn(
-    input_json: &str,
-    model_json: &str,
-    contract_json: &str,
-    consent: bool,
-) -> String {
-    // ─── Parsear inputs ───
+pub fn init_engine(model_json: &str, contract_json: &str) -> Result<(), String> {
+    let model = model::XgbModel::from_json(model_json)?;
+    let contract = contract::InferenceContract::from_json(contract_json)?;
+    
+    // Si ya estaban inicializados, los ignoramos (idempotente)
+    let _ = MODEL.set(model);
+    let _ = CONTRACT.set(contract);
+    Ok(())
+}
+
+/// 🚀 FUNCIÓN DE INFERENCIA (Ultra-rápida, sin parsing de modelo)
+/// ✅ Ya no recibe model_json ni contract_json. Usa el caché global.
+#[wasm_bindgen]
+pub fn predict_churn(input_json: &str, consent: bool) -> String {
+    let model = match MODEL.get() {
+        Some(m) => m,
+        None => return error_response("Engine not initialized. Call init_engine() first."),
+    };
+    let contract = match CONTRACT.get() {
+        Some(c) => c,
+        None => return error_response("Engine not initialized. Call init_engine() first."),
+    };
+
+    // ─── Parsear SOLO el input del usuario (payload pequeño) ───
     let raw_input: Value = match serde_json::from_str(input_json) {
         Ok(v) => v,
         Err(e) => return error_response(&format!("Error parseando input: {}", e)),
-    };
-
-    let model = match model::XgbModel::from_json(model_json) {
-        Ok(m) => m,
-        Err(e) => return error_response(&format!("Error parseando modelo: {}", e)),
-    };
-
-    let contract = match contract::InferenceContract::from_json(contract_json) {
-        Ok(c) => c,
-        Err(e) => return error_response(&format!("Error parseando contrato: {}", e)),
     };
 
     // ─── Validación de consentimiento (Firewall GDPR/Privacy) ───
@@ -66,13 +70,13 @@ pub fn predict_churn(
     }
 
     // ─── Preprocessing ───
-    let preprocessed = match preprocessing::preprocess(&raw_input, &contract) {
+    let preprocessed = match preprocessing::preprocess(&raw_input, contract) {
         Ok(p) => p,
         Err(e) => return error_response(&format!("Error en preprocessing: {}", e)),
     };
 
     // ─── Inferencia ───
-    let margin = inference::predict_margin(&model, &preprocessed.features);
+    let margin = inference::predict_margin(model, &preprocessed.features);
     let probability = inference::sigmoid(margin);
     let is_churn = probability >= contract.best_threshold;
 
@@ -98,21 +102,18 @@ pub fn predict_churn(
     }
 }
 
-/// Función auxiliar para validar paridad con Python (sin consentimiento).
+/// Función auxiliar para validar paridad con Python (usa el caché).
 #[wasm_bindgen]
-pub fn predict_from_scaled_features(
-    features_json: &str,
-    model_json: &str,
-) -> String {
+pub fn predict_from_scaled_features(features_json: &str) -> String {
+    let model = match MODEL.get() {
+        Some(m) => m,
+        None => return error_response("Engine not initialized."),
+    };
     let features: Vec<f64> = match serde_json::from_str(features_json) {
         Ok(f) => f,
         Err(e) => return error_response(&format!("Error parseando features: {}", e)),
     };
-    let model = match model::XgbModel::from_json(model_json) {
-        Ok(m) => m,
-        Err(e) => return error_response(&format!("Error parseando modelo: {}", e)),
-    };
-    let margin = inference::predict_margin(&model, &features);
+    let margin = inference::predict_margin(model, &features);
     let probability = inference::sigmoid(margin);
     let result = serde_json::json!({
         "probability": probability,
@@ -121,23 +122,22 @@ pub fn predict_from_scaled_features(
     result.to_string()
 }
 
-/// Función de verificación de paridad.
+/// Función de verificación de paridad (usa el caché).
 #[wasm_bindgen]
 pub fn verify_parity(
     features_json: &str,
     expected_proba: f64,
-    model_json: &str,
     tolerance: f64,
 ) -> String {
+    let model = match MODEL.get() {
+        Some(m) => m,
+        None => return error_response("Engine not initialized."),
+    };
     let features: Vec<f64> = match serde_json::from_str(features_json) {
         Ok(f) => f,
         Err(e) => return error_response(&format!("Error parseando features: {}", e)),
     };
-    let model = match model::XgbModel::from_json(model_json) {
-        Ok(m) => m,
-        Err(e) => return error_response(&format!("Error parseando modelo: {}", e)),
-    };
-    let margin = inference::predict_margin(&model, &features);
+    let margin = inference::predict_margin(model, &features);
     let probability = inference::sigmoid(margin);
     let diff = (probability - expected_proba).abs();
     let passed = diff <= tolerance;

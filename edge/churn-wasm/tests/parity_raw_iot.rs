@@ -2,15 +2,11 @@
 // ═══════════════════════════════════════════════════════════
 // PARIDAD END-TO-END EDGE IOT: input RAW (25 campos) → preprocessing Rust
 // → árboles XGBoost → proba.
-//
-// El valor esperado lo genera Python en export_edge_iot.py
-// (función preprocess_raw_case), replicando EXACTAMENTE lo que hace Rust.
 // ═══════════════════════════════════════════════════════════
 
 use std::fs;
 
 /// Tolerancia de paridad: Rust (f32 en árboles) vs Python (f64).
-/// 1e-6 es el estándar de la industria para ML inference parity.
 const TOLERANCE: f64 = 1e-6;
 
 #[test]
@@ -33,13 +29,17 @@ fn iot_raw_input_parity_with_python() {
         .expect("Falta expected_proba en raw_parity_case_iot.json");
 
     // ── Cargar modelo y contrato IoT ──
-    let model = fs::read_to_string("../../edge/xgb_model_edge_iot.json")
+    let model_json = fs::read_to_string("../../edge/xgb_model_edge_iot.json")
         .expect("Falta edge/xgb_model_edge_iot.json");
-    let contract = fs::read_to_string("../../edge/inference_contract_edge_iot.json")
+    let contract_json = fs::read_to_string("../../edge/inference_contract_edge_iot.json")
         .expect("Falta edge/inference_contract_edge_iot.json");
 
-    // ── Ejecutar inferencia completa (raw → proba) ──
-    let out = churn_wasm::predict_churn(&raw, &model, &contract, true);
+    // ✅ REFACTOR SENIOR: Inicializar el motor UNA SOLA VEZ (Cacheo en OnceLock)
+    churn_wasm::init_engine(&model_json, &contract_json)
+        .expect("Failed to initialize WASM engine");
+
+    // ✅ REFACTOR SENIOR: Inferencia ultrarrápida (sin parsear JSONs pesados)
+    let out = churn_wasm::predict_churn(&raw, true);
     let res: serde_json::Value = serde_json::from_str(&out)
         .expect("predict_churn devolvió JSON inválido");
 
@@ -92,8 +92,11 @@ fn iot_raw_input_parity_with_python() {
 /// Test adicional: verificar que el firewall de privacidad rechaza campos prohibidos.
 #[test]
 fn iot_privacy_firewall_blocks_forbidden_fields() {
-    let model = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
-    let contract = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
+    let model_json = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
+    let contract_json = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
+
+    // ✅ Inicializar motor
+    churn_wasm::init_engine(&model_json, &contract_json).expect("Failed to init engine");
 
     // Payload con un campo prohibido (pan)
     let malicious_input = serde_json::json!({
@@ -102,7 +105,8 @@ fn iot_privacy_firewall_blocks_forbidden_fields() {
         "Gender": "F"
     });
 
-    let out = churn_wasm::predict_churn(&malicious_input.to_string(), &model, &contract, true);
+    // ✅ Nueva firma: solo input y consentimiento
+    let out = churn_wasm::predict_churn(&malicious_input.to_string(), true);
     let res: serde_json::Value = serde_json::from_str(&out).unwrap();
 
     assert!(
@@ -123,8 +127,11 @@ fn iot_privacy_firewall_blocks_forbidden_fields() {
 /// Test adicional: verificar que el clipping IoT funciona.
 #[test]
 fn iot_bounds_clipping_works() {
-    let model = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
-    let contract = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
+    let model_json = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
+    let contract_json = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
+
+    // ✅ Inicializar motor
+    churn_wasm::init_engine(&model_json, &contract_json).expect("Failed to init engine");
 
     // app_open_count_30d tiene bound [0, 365]. Enviamos 9999.
     let out_of_bounds_input = serde_json::json!({
@@ -155,7 +162,8 @@ fn iot_bounds_clipping_works() {
         "pos_latency_p95_ms": 1500
     });
 
-    let out = churn_wasm::predict_churn(&out_of_bounds_input.to_string(), &model, &contract, true);
+    // ✅ Nueva firma: solo input y consentimiento
+    let out = churn_wasm::predict_churn(&out_of_bounds_input.to_string(), true);
     let res: serde_json::Value = serde_json::from_str(&out).unwrap();
 
     // Debe producir una predicción válida (no error)

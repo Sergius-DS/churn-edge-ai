@@ -1,12 +1,14 @@
 // src/model.rs
 // Parser del modelo XGBoost exportado como JSON.
-
 use serde::Deserialize;
 
 /// Modelo XGBoost completo: conjunto de árboles + base_score.
 #[derive(Debug, Deserialize)]
 pub struct XgbModel {
     pub learner: Learner,
+    /// ✅ Cache del base_score calculado. No viene en el JSON, lo calculamos en from_json.
+    #[serde(skip)]
+    pub cached_base_score: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,26 +45,26 @@ pub struct XgbTree {
 impl XgbModel {
     /// Parsea el modelo desde un string JSON.
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        serde_json::from_str(json_str).map_err(|e| format!("Error parseando modelo: {}", e))
-    }
-
-    /// Convierte el base_score del JSON a valor raw (log-odds).
-    /// XGBoost guarda "5E-1" para binary:logistic con base_score=0.5.
-    /// En raw space, eso es ln(0.5/0.5) = 0.0.
-    pub fn base_score_raw(&self) -> f64 {
-        let val: f64 = self
-            .learner
-            .learner_model_param
-            .base_score
+        let mut model: Self = serde_json::from_str(json_str)
+            .map_err(|e| format!("Error parseando modelo: {}", e))?;
+        
+        // ✅ Calcular UNA SOLA VEZ durante el parsing inicial
+        let val: f64 = model.learner.learner_model_param.base_score
             .parse()
             .unwrap_or(0.5);
-
-        // Si está en rango (0,1), es probabilidad → convertir a log-odds
-        if val > 0.0 && val < 1.0 {
+            
+        model.cached_base_score = if val > 0.0 && val < 1.0 {
             (val / (1.0 - val)).ln()
         } else {
             val
-        }
+        };
+        
+        Ok(model)
+    }
+
+    /// Convierte el base_score del JSON a valor raw (log-odds).
+    pub fn base_score_raw(&self) -> f64 {
+        self.cached_base_score // ✅ O(1) Lookup, cero parsing
     }
 
     /// Número total de árboles.
@@ -77,7 +79,6 @@ mod tests {
 
     #[test]
     fn test_base_score_conversion() {
-        // base_score = 0.5 → log-odds = 0.0
         let raw = (0.5_f64 / (1.0 - 0.5)).ln();
         assert!((raw - 0.0).abs() < 1e-10);
     }
