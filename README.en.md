@@ -588,16 +588,16 @@ churn-edge-ai/
 ├── .gitignore
 ├── pyproject.toml
 ├── README.md                                  # Contains the "🗺️ Project Evolution" section
-├── run_all.py                                 # Unified MLOps orchestrator
+├── run_all.py                                 # Unified MLOps Orchestrator
 ├── Makefile
 │
 ├── data/
 │   ├── raw/
 │   │   └── Credit_card_churn.csv              # Immutable Source (Phase 1)
-│   ├── processed/                             # 🟢 (Phase 2) ML-ready data
+│   ├── processed/                             # 🟢 (Phase 2) ML-ready Data
 │   │   └── credit_card_churn_iot_synthetic.csv
-│   └── synthetic/                             # 🟢 (Phase 2) Traceability & Auditing
-│       └── iot_features_metadata.json         # 🛡️ Zero Target Leakage Proof
+│   └── synthetic/                             # 🟢 (Phase 2) Traceability and Audit
+│       └── iot_features_metadata.json         # 🛡️ Proof of Zero Target Leakage
 │
 ├── model_artifacts/
 │   ├── xgb_model.joblib                       # (Phase 1) Full Baseline
@@ -607,6 +607,10 @@ churn-edge-ai/
 │       ├── xgb_model.joblib
 │       ├── scaler.joblib
 │       ├── model_config.joblib                # Includes optimal threshold (0.33)
+│       ├── num_imputer.joblib                 # 🟢 (Phase 3) Preprocessing artifacts
+│       ├── cat_imputer.joblib
+│       ├── ordinal_imputer.joblib
+│       ├── onehot_encoder.joblib
 │       └── X_test_scaled_sample.csv
 │
 ├── edge/
@@ -614,14 +618,28 @@ churn-edge-ai/
 │   ├── inference_contract.json                # (Phase 1)
 │   ├── xgb_model_edge.json                    # (Phase 1)
 │   ├── inference_contract_edge.json           # (Phase 1)
-│   ├── xgb_model_edge_iot.json                # 🟢 (Phase 2) WASM Core
-│   ├── inference_contract_edge_iot.json       # 🟢 (Phase 2) Privacy Firewall
-│   ├── sample_scaled_edge_iot.npy             # 🟢 (Phase 2) Parity Check
-│   ├── expected_proba_edge_iot.npy            # 🟢 (Phase 2) Expected Probabilities
-│   ├── index.html / demo.js
-│   └── churn-wasm/                            # Rust Engine (Prepared for Phase 3)
+│   ├── xgb_model_edge_iot.json                # 🟢 (Phase 2) WASM Core (34 features)
+│   ├── inference_contract_edge_iot.json       # 🟢 (Phase 3) Enriched Contract v2
+│   ├── sample_scaled_edge_iot.npy             # 🟢 (Phase 2) Parity Test
+│   ├── expected_proba_edge_iot.npy            # 🟢 (Phase 2) Expected Responses
+│   ├── parity_sample_edge_iot.json            # 🟢 (Phase 3) Post-scaling Parity (JSON)
+│   ├── raw_parity_case_iot.json               # 🟢 (Phase 3) RAW→proba Golden Case
+│   ├── index.html                             # 🟢 (Phase 3) Dual Demo (Operator + Client)
+│   ├── demo.js                                # 🟢 (Phase 3) WASM Logic + Mock Bank + Fallback
+│   └── churn-wasm/                            # 🟢 (Phase 3) Full Rust Engine
 │       ├── Cargo.toml
-│       └── src/ ...
+│       └── src/
+│           ├── lib.rs                         # Entry point + init_engine (OnceLock cache)
+│           ├── contract.rs                    # Contract Parser (IoT + backward-compat)
+│           ├── preprocessing.rs               # RAW→features Pipeline (firewall + clipping)
+│           ├── model.rs                       # XGBoost JSON Tree Parser
+│           └── inference.rs                   # Inference Engine (f32 + sigmoid)
+│
+├── mock_bank/                                 # 🟢 (Phase 3) Simulated Backend
+│   ├── main.py                                # FastAPI with 5 endpoints
+│   ├── requirements.txt                       # Dependencies (fastapi, uvicorn, pydantic)
+│   ├── __init__.py                            # Python Package
+│   └── README.md                              # Endpoint Documentation
 │
 ├── src/
 │   ├── config.py                              # (Updated: IOT_REFERENCE, Bounds)
@@ -639,7 +657,8 @@ churn-edge-ai/
 │   ├── export_edge_lite.py                    # (Phase 1)
 │   ├── generate_synthetic_iot.py              # 🟢 (Phase 2)
 │   ├── train_edge_iot_model.py                # 🟢 (Phase 2)
-│   └── export_edge_iot.py                     # 🟢 (Phase 2)
+│   ├── export_edge_iot.py                     # 🟢 (Phase 3) Enriched Contract v2
+│   └── validate_parity_raw_iot.py             # 🟢 (Phase 3) Generates IoT Golden Case
 │
 └── .github/workflows/ci.yml
 ```
@@ -922,39 +941,68 @@ To take this system to production, the following is recommended:
   Or clear the cache.
 ---
 
-## 🗺️ Project Evolution: From Classic Churn to a Banking IoT SDK
+## 🗺️ Project Evolution: From Classical Churn to IoT Banking SDK
 
-This repository documents the development of a deterministic inference engine at the Edge. What began as a traditional banking churn model (Milestone 1), is now evolving into a comprehensive IoT SDK with cryptographic privacy contracts for the financial industry.
+This repository documents the development of a deterministic edge inference engine. What began as a traditional banking churn model (Milestone 1) has evolved into a comprehensive IoT SDK featuring cryptographic privacy contracts for the financial industry.
 
 ### 🏁 Milestone 1: The Deterministic Engine (Completed ✅)
-The physical and mathematical foundation of the SDK is now fully operational and certified.
+The physical and mathematical foundation of the SDK is fully operational and certified.
 - [x] XGBoost training with a strict anti-leakage pipeline.
-- [x] Edge optimization (72.1% model size reduction, 12 features).
-- [x] Inference engine built in Rust / WebAssembly.
-- [x] Mathematical parity certification (Python ↔ JSON ↔ WASM) with a maximum deviation of `7.31e-09`.
+- [x] Edge optimization (72.1% weight reduction, 12 features).
+- [x] Inference engine in Rust / WebAssembly.
+- [x] Mathematical parity certification (Python ↔ JSON ↔ WASM) with a maximum discrepancy of `7.31e-09`.
 - [x] 100% client-side inference (Zero-Trust / 0 bytes sent to the server).
 
-### 🌱 Milestone 2: IoT Telemetry and Privacy Contracts (In Progress 🚧)
-- [ ] Synthetic IoT data generator (app usage, POS latency, NFC friction).
-- [ ] Hybrid model training (traditional features + IoT).
-- [ ] Inference contract JSON schema (Privacy firewall).
+### 🌱 Milestone 2: IoT Telemetry and Privacy Contracts (Completed ✅)
+- [x] Synthetic IoT data generator (app usage, POS latency, NFC friction).
+- [x] Hybrid model training (19 banking features + 6 IoT = 25 raw → 34 post-preprocessing).
+- [x] Enriched inference contract JSON schema v2 (Privacy firewall + IoT bounds).
 
-### 🛡️ Milestone 3: Secure Rust Core (Planned 📋)
-- [ ] Artifact integrity verification (SHA-256 and digital signatures).
-- [ ] Strict payload validation (rejection of forbidden fields such as CVV or GPS).
-- [ ] Cross-platform compilation (WASM, Android `.so`, iOS `.a`).
-- [ ] On-device performance benchmarking (battery, CPU, latency).
+### 🛡️ Milestone 3: Secure Core in Rust (Completed ✅)
+- [x] Artifact integrity verification (Embedded SHA-256 in contract).
+- [x] Strict payload validation (Rejection of forbidden fields such as CVV, GPS, PAN).
+- [x] Automatic clipping for out-of-range IoT values (bounds enforcement).
+- [x] `init_engine` architecture with `OnceLock` (global zero-copy cache).
+- [x] End-to-end integration tests (RAW→proba parity with 1e-6 tolerance).
+- [ ] Cross-platform compilation (Android `.so`, iOS `.a`) — *pending*.
+- [ ] Formal benchmarking with `criterion.rs` — *pending*.
 
-### 🔌 Milestone 4: B2B Ecosystem Integration (Planned 📋)
-- [ ] `Mock Bank API` (FastAPI: consent and feature minimization).
-- [ ] Web SDK (NPM + Web Workers).
-- [ ] Mobile wrappers (Kotlin/JNI and Swift/C-Bridge).
-- [ ] Offline-first inference mode (prioritizing offline execution).
+### 🔌 Milestone 4: B2B Ecosystem Integration (Partially Completed 🚧)
+- [x] `Mock Bank API` (FastAPI with 5 endpoints: health, features, consent POST/GET, clients).
+- [x] GDPR consent management (registration + revocation + persistence).
+- [x] *Offline-first* inference mode (embedded fallback + localStorage).
+- [ ] Web SDK (NPM + Web Workers) — *pending*.
+- [ ] Mobile wrappers (Kotlin/JNI and Swift/C-Bridge) — *pending*.
 
-### 💼 Milestone 5: Banking UX and Business Logic (Planned 📋)
-- [ ] User interface (UI) for the banking test app (explicit consent management).
-- [ ] Business decision engine (Probability -> Retention campaigns).
-- [ ] Privacy-preserving observability dashboard.
+### 💼 Milestone 5: Banking UX and Business Logic (Completed ✅)
+- [x] Dual interface: Operator View (technical console) + Client View (banking app simulator).
+- [x] Explicit consent management using benefit-oriented language ("future personalized benefits").
+- [x] Business decision engine: `proba > threshold ∧ consent → cashback offer`.
+- [x] Implemented business rule: "If probability > 33% and consent is granted → offer $50 USD".
+- [ ] Privacy-preserving observability dashboard — *pending*.
+
+---
+
+## 🎯 Current Project Status (November 2026)
+
+### ✅ What is working in production:
+1. **Full Python Pipeline**: Training → Edge Optimization → IoT Export → Parity Validation.
+2. **Rust/WASM Engine**: Deterministic inference with certified parity (max diff < 1e-8).
+3. **Enriched Contract v2**: Complete schema with imputers, ordinal, onehot, scaler, IoT bounds, and forbidden fields.
+4. **Mock Bank API**: Simulated backend with consent management and RESTful endpoints.
+5. **Dual Frontend**: Technical view (operator) + Commercial view (client) with retention business rules.
+6. **Zero-copy Architecture**: `init_engine` caches model+contract in `OnceLock`, inference < 1ms.
+7. **Offline Fallback**: Runs on GitHub Pages without the Mock Bank (embedded features + localStorage).
+
+### 🚧 Pending for actual production:
+- Native compilation for Android/iOS
+- Formal benchmarking with `criterion.rs`
+- Observability dashboard
+- Distributable Web SDK via NPM
+- Cryptographic contract signing (Ed25519)
+- Integration with real banking systems (non-mock)
+
+---
 
 ---
 

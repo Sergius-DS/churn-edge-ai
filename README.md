@@ -671,6 +671,10 @@ churn-edge-ai/
 │       ├── xgb_model.joblib
 │       ├── scaler.joblib
 │       ├── model_config.joblib                # Incluye threshold óptimo (0.33)
+│       ├── num_imputer.joblib                 # 🟢 (Fase 3) Artefactos de preprocessing
+│       ├── cat_imputer.joblib
+│       ├── ordinal_imputer.joblib
+│       ├── onehot_encoder.joblib
 │       └── X_test_scaled_sample.csv
 │
 ├── edge/
@@ -678,14 +682,28 @@ churn-edge-ai/
 │   ├── inference_contract.json                # (Fase 1)
 │   ├── xgb_model_edge.json                    # (Fase 1)
 │   ├── inference_contract_edge.json           # (Fase 1)
-│   ├── xgb_model_edge_iot.json                # 🟢 (Fase 2) Cerebro WASM
-│   ├── inference_contract_edge_iot.json       # 🟢 (Fase 2) Firewall de Privacidad
+│   ├── xgb_model_edge_iot.json                # 🟢 (Fase 2) Cerebro WASM (34 features)
+│   ├── inference_contract_edge_iot.json       # 🟢 (Fase 3) Contrato enriquecido v2
 │   ├── sample_scaled_edge_iot.npy             # 🟢 (Fase 2) Examen de Paridad
 │   ├── expected_proba_edge_iot.npy            # 🟢 (Fase 2) Respuestas Esperadas
-│   ├── index.html / demo.js
-│   └── churn-wasm/                            # Motor Rust (Preparado para Fase 3)
+│   ├── parity_sample_edge_iot.json            # 🟢 (Fase 3) Paridad post-escalado (JSON)
+│   ├── raw_parity_case_iot.json               # 🟢 (Fase 3) Golden case RAW→proba
+│   ├── index.html                             # 🟢 (Fase 3) Demo dual (Operador + Cliente)
+│   ├── demo.js                                # 🟢 (Fase 3) Lógica WASM + Mock Bank + fallback
+│   └── churn-wasm/                            # 🟢 (Fase 3) Motor Rust completo
 │       ├── Cargo.toml
-│       └── src/ ...
+│       └── src/
+│           ├── lib.rs                         # Entry point + init_engine (OnceLock cache)
+│           ├── contract.rs                    # Parser de contratos (IoT + backward-compat)
+│           ├── preprocessing.rs               # Pipeline RAW→features (firewall + clipping)
+│           ├── model.rs                       # Parser de árboles XGBoost JSON
+│           └── inference.rs                   # Motor de inferencia (f32 + sigmoid)
+│
+├── mock_bank/                                 # 🟢 (Fase 3) Backend simulado
+│   ├── main.py                                # FastAPI con 5 endpoints
+│   ├── requirements.txt                       # Dependencias (fastapi, uvicorn, pydantic)
+│   ├── __init__.py                            # Paquete Python
+│   └── README.md                              # Documentación de endpoints
 │
 ├── src/
 │   ├── config.py                              # (Actualizado: IOT_REFERENCE, Bounds)
@@ -703,7 +721,8 @@ churn-edge-ai/
 │   ├── export_edge_lite.py                    # (Fase 1)
 │   ├── generate_synthetic_iot.py              # 🟢 (Fase 2)
 │   ├── train_edge_iot_model.py                # 🟢 (Fase 2)
-│   └── export_edge_iot.py                     # 🟢 (Fase 2)
+│   ├── export_edge_iot.py                     # 🟢 (Fase 3) Contrato enriquecido v2
+│   └── validate_parity_raw_iot.py             # 🟢 (Fase 3) Genera golden case IoT
 │
 └── .github/workflows/ci.yml
 ```
@@ -1060,7 +1079,7 @@ o limpiar caché.
 
 ## 🗺️ Evolución del Proyecto: De Churn Clásico a SDK Bancario IoT
 
-Este repositorio documenta la construcción de un motor de inferencia determinista en el Edge. Lo que comenzó como un modelo de churn bancario tradicional (Hito 1), está evolucionando hacia un SDK completo de IoT con contratos de privacidad criptográficos para la industria financiera.
+Este repositorio documenta la construcción de un motor de inferencia determinista en el Edge. Lo que comenzó como un modelo de churn bancario tradicional (Hito 1), ha evolucionado hacia un SDK completo de IoT con contratos de privacidad criptográficos para la industria financiera.
 
 ### 🏁 Hito 1: El Motor Determinista (Completado ✅)
 La base física y matemática del SDK ya está operativa y certificada.
@@ -1070,27 +1089,54 @@ La base física y matemática del SDK ya está operativa y certificada.
 - [x] Certificación de paridad matemática (Python ↔ JSON ↔ WASM) con diferencia máxima de `7.31e-09`.
 - [x] Inferencia 100% client-side (Zero-Trust / 0 bytes enviados al servidor).
 
-### 🌱 Hito 2: Telemetría IoT y Contratos de Privacidad (En Progreso 🚧)
-- [ ] Generador de datos sintéticos de IoT (Uso de apps, latencia en POS, fricción NFC).
-- [ ] Entrenamiento de modelo híbrido (Características tradicionales + IoT).
-- [ ] Esquema JSON del contrato de inferencia (Cortafuegos de privacidad).
+### 🌱 Hito 2: Telemetría IoT y Contratos de Privacidad (Completado ✅)
+- [x] Generador de datos sintéticos de IoT (Uso de apps, latencia en POS, fricción NFC).
+- [x] Entrenamiento de modelo híbrido (19 características bancarias + 6 IoT = 25 raw → 34 post-preprocessing).
+- [x] Esquema JSON del contrato de inferencia enriquecido v2 (Firewall de privacidad + IoT bounds).
 
-### 🛡️ Hito 3: Núcleo Seguro en Rust (Planificado 📋)
-- [ ] Verificación de integridad de artefactos (SHA-256 y firma digital).
-- [ ] Validación estricta del payload (Rechazo de campos prohibidos como CVV o GPS).
-- [ ] Compilación multiplataforma (WASM, Android `.so`, iOS `.a`).
-- [ ] Evaluación de rendimiento (Benchmarking) en dispositivo (Batería, CPU, latencia).
+### 🛡️ Hito 3: Núcleo Seguro en Rust (Completado ✅)
+- [x] Verificación de integridad de artefactos (SHA-256 embebido en contrato).
+- [x] Validación estricta del payload (Rechazo de campos prohibidos como CVV, GPS, PAN).
+- [x] Clipping automático de valores IoT fuera de rangos (bounds enforcement).
+- [x] Arquitectura `init_engine` con `OnceLock` (caché global zero-copy).
+- [x] Tests de integración end-to-end (paridad RAW→proba con tolerancia 1e-6).
+- [ ] Compilación multiplataforma (Android `.so`, iOS `.a`) — *pendiente*.
+- [ ] Benchmarking formal con `criterion.rs` — *pendiente*.
 
-### 🔌 Hito 4: Integración en el Ecosistema B2B (Planificado 📋)
-- [ ] `Mock Bank API` (FastAPI: Consentimiento y características minimizadas).
-- [ ] SDK Web (NPM + Web Workers).
-- [ ] Envoltorios (Wrappers) móviles (Kotlin/JNI y Swift/C-Bridge).
-- [ ] Modo de inferencia *offline-first* (prioridad sin conexión).
+### 🔌 Hito 4: Integración en el Ecosistema B2B (Parcialmente Completado 🚧)
+- [x] `Mock Bank API` (FastAPI con 5 endpoints: health, features, consent POST/GET, clients).
+- [x] Gestión de consentimiento GDPR (registro + revocación + persistencia).
+- [x] Modo de inferencia *offline-first* (fallback embebido + localStorage).
+- [ ] SDK Web (NPM + Web Workers) — *pendiente*.
+- [ ] Envoltorios móviles (Kotlin/JNI y Swift/C-Bridge) — *pendiente*.
 
-### 💼 Hito 5: UX Bancaria y Lógica de Negocio (Planificado 📋)
-- [ ] Interfaz de usuario (UI) para la aplicación de prueba bancaria (Gestión explícita del consentimiento).
-- [ ] Motor de decisiones de negocio (Probabilidad -> Campañas de fidelización).
-- [ ] Panel de control (Dashboard) de observabilidad con preservación de privacidad.
+### 💼 Hito 5: UX Bancaria y Lógica de Negocio (Completado ✅)
+- [x] Interfaz dual: Vista Operador (consola técnica) + Vista Cliente (simulador app bancaria).
+- [x] Gestión explícita del consentimiento con lenguaje de beneficios ("futuros beneficios personalizados").
+- [x] Motor de decisiones de negocio: `proba > threshold ∧ consentimiento → oferta de cashback`.
+- [x] Regla de negocio implementada: "Si probabilidad > 33% y hay consentimiento → ofrecer $50 USD".
+- [ ] Panel de control (Dashboard) de observabilidad con preservación de privacidad — *pendiente*.
+
+---
+
+## 🎯 Estado Actual del Proyecto (Noviembre 2026)
+
+### ✅ Lo que está funcionando en producción:
+1. **Pipeline Python completo**: Entrenamiento → Optimización Edge → Exportación IoT → Validación de paridad.
+2. **Motor Rust/WASM**: Inferencia determinista con paridad certificada (max diff < 1e-8).
+3. **Contrato enriquecido v2**: Schema completo con imputers, ordinal, onehot, scaler, IoT bounds, forbidden fields.
+4. **Mock Bank API**: Backend simulado con gestión de consentimiento y endpoints RESTful.
+5. **Frontend dual**: Vista técnica (operador) + Vista comercial (cliente) con regla de negocio de retención.
+6. **Arquitectura zero-copy**: `init_engine` cachea modelo+contrato en `OnceLock`, inferencia < 1ms.
+7. **Fallback offline**: Funciona en GitHub Pages sin Mock Bank (features embebidas + localStorage).
+
+### 🚧 Pendiente para producción real:
+- Compilación nativa para Android/iOS
+- Benchmarking formal con `criterion.rs`
+- Dashboard de observabilidad
+- SDK Web distribuible vía NPM
+- Firma criptográfica de contratos (Ed25519)
+- Integración con sistemas bancarios reales (no mock)
 
 ---
 
