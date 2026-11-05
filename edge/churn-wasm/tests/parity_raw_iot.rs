@@ -39,7 +39,7 @@ fn iot_raw_input_parity_with_python() {
         .expect("Falta edge/inference_contract_edge_iot.json");
 
     // ── Ejecutar inferencia completa (raw → proba) ──
-    let out = churn_wasm::predict_churn(&raw, &model, &contract);
+    let out = churn_wasm::predict_churn(&raw, &model, &contract, true);
     let res: serde_json::Value = serde_json::from_str(&out)
         .expect("predict_churn devolvió JSON inválido");
 
@@ -102,7 +102,7 @@ fn iot_privacy_firewall_blocks_forbidden_fields() {
         "Gender": "F"
     });
 
-    let out = churn_wasm::predict_churn(&malicious_input.to_string(), &model, &contract);
+    let out = churn_wasm::predict_churn(&malicious_input.to_string(), &model, &contract, true);
     let res: serde_json::Value = serde_json::from_str(&out).unwrap();
 
     assert!(
@@ -155,7 +155,7 @@ fn iot_bounds_clipping_works() {
         "pos_latency_p95_ms": 1500
     });
 
-    let out = churn_wasm::predict_churn(&out_of_bounds_input.to_string(), &model, &contract);
+    let out = churn_wasm::predict_churn(&out_of_bounds_input.to_string(), &model, &contract, true);
     let res: serde_json::Value = serde_json::from_str(&out).unwrap();
 
     // Debe producir una predicción válida (no error)

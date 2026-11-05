@@ -3,8 +3,8 @@
 use crate::model::XgbModel;
 
 /// Recorre un solo árbol y retorna la predicción (valor de la hoja).
-/// NOTA: XGBoost usa f32 internamente para los splits y pesos.
-fn predict_single_tree(tree: &crate::model::XgbTree, features: &[f32]) -> f32 {
+/// ✅ Refactor Senior: Acepta &[f64] para hacer el cast al vuelo (Zero-Copy).
+fn predict_single_tree(tree: &crate::model::XgbTree, features: &[f64]) -> f32 {
     let mut node: usize = 0;
     loop {
         let left_child = tree.left_children[node];
@@ -16,7 +16,9 @@ fn predict_single_tree(tree: &crate::model::XgbTree, features: &[f32]) -> f32 {
         let feat_idx = tree.split_indices[node] as usize;
         let condition = tree.split_conditions[node] as f32;
         
-        if feat_idx < features.len() && features[feat_idx] < condition {
+        // ✅ Zero-Copy: Evaluamos y hacemos el cast (as f32) en el momento exacto.
+        // Mantenemos la lógica exacta de seguridad de índices de tu código original.
+        if feat_idx < features.len() && (features[feat_idx] as f32) < condition {
             node = left_child as usize;
         } else {
             node = tree.right_children[node] as usize;
@@ -25,20 +27,17 @@ fn predict_single_tree(tree: &crate::model::XgbTree, features: &[f32]) -> f32 {
 }
 
 /// Calcula el margin (raw score) sumando todos los árboles + base_score.
-/// Convertimos todo a f32 para coincidir exactamente con el kernel de XGBoost.
+/// ✅ Refactor Senior: Cero allocaciones en el Heap.
 pub fn predict_margin(model: &XgbModel, features: &[f64]) -> f64 {
-    // 1. Convertir features de f64 a f32 (como hace XGBoost al recibir datos)
-    let feats_f32: Vec<f32> = features.iter().map(|&x| x as f32).collect();
-    
-    // 2. Iniciar margin en f32
+    // 1. Iniciar margin en f32 (XGBoost acumula en f32 internamente)
     let mut margin: f32 = model.base_score_raw() as f32;
     
-    // 3. Recorrer árboles acumulando en f32
+    // 2. Recorrer árboles pasando el slice &[f64] original (sin clonar)
     for tree in &model.learner.gradient_booster.model.trees {
-        margin += predict_single_tree(tree, &feats_f32);
+        margin += predict_single_tree(tree, features);
     }
     
-    // 4. Devolver a f64 para el sigmoide final
+    // 3. Devolver a f64 para el sigmoide final
     margin as f64
 }
 

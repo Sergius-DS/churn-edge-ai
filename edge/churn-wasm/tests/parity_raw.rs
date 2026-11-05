@@ -16,7 +16,7 @@ fn raw_input_parity_with_python() {
     let model = fs::read_to_string("../../edge/xgb_model_edge.json").unwrap();
     let contract = fs::read_to_string("../../edge/inference_contract_edge.json").unwrap();
 
-    let out = churn_wasm::predict_churn(&raw, &model, &contract);
+    let out = churn_wasm::predict_churn(&raw, &model, &contract, true);
     let res: serde_json::Value = serde_json::from_str(&out)
         .expect("predict_churn devolvió JSON inválido");
 
