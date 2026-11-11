@@ -1,15 +1,23 @@
-# 🪶 Churn Edge AI — Predicción de churn 100% en el navegador con Rust + WebAssembly
+<h1 align="center">🪶 Churn Edge AI</h1>
+<p align="center">
+  <b>Predicción de churn 100% en el navegador con Rust + WebAssembly</b><br><br>
+  <a href="https://sergius-ds.github.io/churn-edge-ai/" target="_blank">
+    <img src="https://img.shields.io/badge/🚀_PROBAR_DEMO_EN_VIVO-2EA44F?style=for-the-badge&logo=githubpages&logoColor=white" alt="Probar Demo en Vivo">
+  </a>
+</p>
 
-![CI](https://github.com/Sergius-DS/churn-edge-ai/actions/workflows/ci.yml/badge.svg)
-![Dev Container](https://img.shields.io/badge/Dev_Container-Ready-blue?logo=visualstudiocode&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-stable-orange)
-![WASM](https://img.shields.io/badge/WASM-edge-blue)
-![XGBoost](https://img.shields.io/badge/XGBoost-JSON-green)
-![Model Size](https://img.shields.io/badge/edge_model-229_KB-orange)
-![Parity](https://img.shields.io/badge/parity_python%E2%86%94wasm-max_diff_7.3e--9-brightgreen)
-![Inference](https://img.shields.io/badge/inference-100%25_client--side-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Sergius-DS/churn-edge-ai?quickstart=1)
+<p align="center">
+  <img src="https://github.com/Sergius-DS/churn-edge-ai/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/Dev_Container-Ready-blue?logo=visualstudiocode&logoColor=white" alt="Dev Container">
+  <img src="https://img.shields.io/badge/Rust-stable-orange" alt="Rust">
+  <img src="https://img.shields.io/badge/WASM-edge-blue" alt="WASM">
+  <img src="https://img.shields.io/badge/XGBoost-JSON-green" alt="XGBoost">
+  <img src="https://img.shields.io/badge/edge_model-229_KB-orange" alt="Edge Model">
+  <img src="https://img.shields.io/badge/inference-100%25_client--side-blue" alt="Inference">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+</p>
+
+
 
 > **Churn Edge AI** entrena un modelo XGBoost en Python, lo exporta como JSON optimizado para edge y ejecuta la inferencia completa en **Rust/WebAssembly** dentro del navegador.  
 > El cliente no envía datos sensibles a un servidor: la predicción ocurre localmente, con paridad numérica certificada respecto a Python.
