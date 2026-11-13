@@ -16,7 +16,6 @@ from src.config import (
     INCOME_ORDER,
     EDUCATION_ORDER,
     ORDINAL_SOURCE_COLUMNS,
-    IOT_FEATURE_BOUNDS,
 )
 
 
@@ -41,6 +40,16 @@ def impute_data(
 
     print(f"[preprocessing] Columnas numéricas: {len(num_cols)} | Categóricas: {len(cat_cols)}")
 
+    # Una columna 100% NaN desaparece en SimpleImputer y cambia el
+    # conteo de features sin aviso.
+    all_nan = [c for c in num_cols + cat_cols if X_train[c].isna().all()]
+    if all_nan:
+        raise ValueError(f"Columnas 100% NaN en train: {all_nan}")
+
+    n_nan_train = int(X_train.isna().sum().sum())
+    n_nan_test  = int(X_test.isna().sum().sum())
+    print(f"[preprocessing] NaN de entrada: train={n_nan_train} test={n_nan_test}")
+
     num_imputer = SimpleImputer(strategy="mean")
     cat_imputer = SimpleImputer(strategy="most_frequent")
 
@@ -54,6 +63,13 @@ def impute_data(
 
     assert X_train.isna().sum().sum() == 0, "NaN en X_train tras imputación"
     assert X_test.isna().sum().sum() == 0, "NaN en X_test tras imputación"
+
+    # Sobre dato curado la imputación debe ser un NO-OP.
+    if n_nan_train or n_nan_test:
+        print(
+            f"[preprocessing] ⚠️  Imputación ACTIVA: {n_nan_train + n_nan_test} celdas. "
+            "Sobre curated debería ser 0 — auditar procedencia."
+        )
 
     print("[preprocessing] ✅ Imputación completada sin NaN")
     return X_train, X_test, num_imputer, cat_imputer
@@ -232,28 +248,59 @@ def apply_scaling(
     print("[preprocessing] ✅ Escalado terminado")
     return X_train_scaled, X_test_scaled, scaler
 
+
 # ═══════════════════════════════════════════════════════════
-#
+# CONTRATO IoT — fail-closed, sin clip
 # ═══════════════════════════════════════════════════════════
-def apply_iot_bounds(
-    X_train: pd.DataFrame,
-    X_test: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+def validate_iot_contract(X_train: pd.DataFrame, X_test: pd.DataFrame) -> dict:
     """
-    Aplica límites razonables a las features IoT.
-    Esto simula una validación básica de contrato edge.
+    Fail-closed. NO CLIP.
+    En entrenamiento, un valor fuera de rango es un bug del generador: se rechaza.
+    El clip_and_flag vive en la frontera de inferencia (preprocessing.rs), no acá.
+    Reporta saturación contra el SOPORTE del generador, no contra bounds anchos.
     """
-    X_train = X_train.copy()
-    X_test = X_test.copy()
+    from src.data_contract import (
+        IOT_PHYSICAL_BOUNDS, IOT_GENERATOR_CAPS, ContractViolation,
+    )
 
-    for col, (lower, upper) in IOT_FEATURE_BOUNDS.items():
-        if col in X_train.columns:
-            X_train[col] = X_train[col].clip(lower, upper)
+    present = [c for c in IOT_PHYSICAL_BOUNDS if c in X_train.columns]
+    if not present:
+        return {"iot": False}
 
-        if col in X_test.columns:
-            X_test[col] = X_test[col].clip(lower, upper)
+    errs, sat = [], {}
 
-    return X_train, X_test
+    for name, X in (("train", X_train), ("test", X_test)):
+        for col in present:
+            s = pd.to_numeric(X[col], errors="raise")
+            lo, hi = IOT_PHYSICAL_BOUNDS[col]
+            bad = ~s.between(lo, hi)
+            if bad.any():
+                errs.append(
+                    f"{name}.{col}: {int(bad.sum())} fuera de [{lo},{hi}] "
+                    f"(min={s.min():.4g} max={s.max():.4g})"
+                )
+            if name == "train":
+                cap = IOT_GENERATOR_CAPS[col]
+                sat[col] = {
+                    "at_cap_frac": float((s >= cap).mean()),
+                    "cap": cap,
+                    "max": float(s.max()),
+                }
+
+    if errs:
+        raise ContractViolation(
+            "IoT fuera de contrato:\n- " + "\n- ".join(errs)
+        )
+
+    worst = max(sat.items(), key=lambda kv: kv[1]["at_cap_frac"])
+    print(
+        f"[preprocessing] ✅ IoT en contrato | saturación máx: "
+        f"{worst[0]} {worst[1]['at_cap_frac']:.2%} en cap {worst[1]['cap']}"
+    )
+    return {"iot": True, "saturation": sat}
+
+
 # ═══════════════════════════════════════════════════════════
 # PIPELINE COMPLETO
 # ═══════════════════════════════════════════════════════════
@@ -273,8 +320,8 @@ def run_full_pipeline(
 
     Esto es necesario para optimize_threshold y feature selection.
     """
-    # 0. Validación de rangos IoT
-    X_train, X_test = apply_iot_bounds(X_train, X_test)
+    # 0. Contrato IoT: valida, no clip
+    iot_report = validate_iot_contract(X_train, X_test)
 
     # 1. Imputación
     X_train, X_test, num_imputer, cat_imputer = impute_data(X_train, X_test)
@@ -322,4 +369,7 @@ def run_full_pipeline(
         "ordinal_imputer": ordinal_imputer,
         "encoder": encoder,
         "scaler": scaler,
+
+        # Contrato IoT
+        "contract_report": iot_report,
     }

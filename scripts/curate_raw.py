@@ -10,7 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import DATA_PATH, PROJECT_ROOT, SEED
+from src.config import RAW_ORIGIN_PATH, PROJECT_ROOT
+import src.data_contract as dc 
 from src.data_contract import validate, CONTRACT_VERSION
 
 RULES_VERSION = "1.0.0"
@@ -36,7 +37,7 @@ def inverse_parse(s: pd.Series):
 
 def main() -> None:
     CURATED_DIR.mkdir(parents=True, exist_ok=True)
-    raw = pd.read_csv(DATA_PATH)
+    raw = pd.read_csv(RAW_ORIGIN_PATH)
     rules: dict = {}
 
     # ── R1: reconstrucción desde primarias (no inversión) ──────────────
@@ -127,10 +128,11 @@ def main() -> None:
         "curation_rules_version": RULES_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "classification": "CURATED — no es BankChurners canónico",
-        "source": {"path": str(DATA_PATH), "sha256": sha(DATA_PATH),
+        "source": {"path": str(RAW_ORIGIN_PATH), "sha256": sha(RAW_ORIGIN_PATH),
                    "n_rows": len(raw), "n_cols": raw.shape[1],
                    "git_first_commit": "2779afc", "never_modified_in_repo": True},
         "script_sha256": sha(Path(__file__)),
+        "contract_sha256": sha(Path(dc.__file__)), 
         "output": {"path": str(f_cur), "sha256": sha(f_cur),
                    "n_rows": len(cur), "n_cols": cur.shape[1]},
         "quarantine": {"path": str(f_qua), "sha256": sha(f_qua), "n_rows": n_q,
