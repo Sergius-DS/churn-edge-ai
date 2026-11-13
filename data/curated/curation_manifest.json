@@ -1,0 +1,193 @@
+{
+  "contract_version": "1.1.0",
+  "curation_rules_version": "1.0.0",
+  "created_at": "2026-11-13T23:02:01.837724+00:00",
+  "classification": "CURATED — no es BankChurners canónico",
+  "source": {
+    "path": "C:\\Proyectos_python\\churn-edge-ai\\data\\raw\\Credit_card_churn.csv",
+    "sha256": "41f4e92afcf6909c5ad3130e4c5dc9f9d97f3eb7dfe5ea1ad8beeca0d9cffa59",
+    "n_rows": 10127,
+    "n_cols": 23,
+    "git_first_commit": "2779afc",
+    "never_modified_in_repo": true
+  },
+  "script_sha256": "1112212f7c6583d6ca0b6d1dd302323eea9dad163020390f781aece7bda820b2",
+  "output": {
+    "path": "C:\\Proyectos_python\\churn-edge-ai\\data\\curated\\churn_curated.csv",
+    "sha256": "6bced2a3bf04db7b4fd24bf26eec045b8d3966b268b1b0b3a34c3e01fc23198b",
+    "n_rows": 9996,
+    "n_cols": 23
+  },
+  "quarantine": {
+    "path": "C:\\Proyectos_python\\churn-edge-ai\\data\\curated\\quarantine.csv",
+    "sha256": "a49c8ecee4cda13536b59853aa6daa0a7e142c0129669c0a9d2de583e534ab01",
+    "n_rows": 131,
+    "composition": {
+      "Existing Customer": 123,
+      "Attrited Customer": 8
+    },
+    "missingness": "MNAR",
+    "attrited_expected_under_MCAR": 21.046410585563347,
+    "attrited_sd": 4.202987294745428,
+    "attrited_observed": 8,
+    "z": -3.104080424386236,
+    "prevalence_before": 0.1606596227905599,
+    "prevalence_after": 0.16196478591436575,
+    "imputation_applied": false
+  },
+  "rules": {
+    "R1_utilization_rebuilt": {
+      "source_columns": [
+        "Total_Revolving_Bal",
+        "Credit_Limit"
+      ],
+      "rows": 10127,
+      "inverted_crosscheck": 6880,
+      "exact_match_vs_inverse_parse": 1.0,
+      "within_0.0011": 1.0,
+      "imputed_values": 0
+    },
+    "R2R3_Total_Ct_Chng_Q4_Q1": {
+      "inverted_div_1000": 8368,
+      "kept_intact": 1509,
+      "ambiguous_resolved_intact": 176,
+      "ambiguous_distribution": {
+        "1.0": 166,
+        "2.0": 8,
+        "3.0": 2
+      },
+      "ambiguous_mass_at_1.0": 0.9431818181818182,
+      "support_floor_nonzero": 0.028,
+      "paired_trend_mean_ambiguous": 0.7581369414101291,
+      "paired_trend_mean_global": 0.7581369414101291,
+      "preconditions": {
+        "P1_support_below_0.004_empty": true,
+        "P2_floor_above_alternative": true,
+        "P3_count_ratio_domain": true,
+        "P4_cross_column_coherent": true
+      },
+      "quarantined_cells": 74
+    },
+    "R2R3_Total_Amt_Chng_Q4_Q1": {
+      "inverted_div_1000": 9079,
+      "kept_intact": 984,
+      "ambiguous_resolved_intact": 7,
+      "ambiguous_distribution": {
+        "1.0": 7
+      },
+      "ambiguous_mass_at_1.0": 1.0,
+      "support_floor_nonzero": 0.01,
+      "paired_trend_mean_ambiguous": 0.7072521635332738,
+      "paired_trend_mean_global": 0.7072521635332738,
+      "preconditions": {
+        "P1_support_below_0.004_empty": true,
+        "P2_floor_above_alternative": true,
+        "P3_count_ratio_domain": true,
+        "P4_cross_column_coherent": true
+      },
+      "quarantined_cells": 57
+    }
+  },
+  "validation": {
+    "Customer_Age": {
+      "min": 26.0,
+      "max": 73.0,
+      "mean": 46.34653861544618,
+      "std": 8.009309179971744
+    },
+    "Dependent_count": {
+      "min": 0.0,
+      "max": 5.0,
+      "mean": 2.347438975590236,
+      "std": 1.2981051506979877
+    },
+    "Months_on_book": {
+      "min": 13.0,
+      "max": 56.0,
+      "mean": 35.93637454981993,
+      "std": 7.982982990717417
+    },
+    "Total_Relationship_Count": {
+      "min": 1.0,
+      "max": 6.0,
+      "mean": 3.808723489395758,
+      "std": 1.5550681816876448
+    },
+    "Months_Inactive_12_mon": {
+      "min": 0.0,
+      "max": 6.0,
+      "mean": 2.342236894757903,
+      "std": 1.0107084268300892
+    },
+    "Contacts_Count_12_mon": {
+      "min": 0.0,
+      "max": 6.0,
+      "mean": 2.455082032813125,
+      "std": 1.1073826490599483
+    },
+    "Credit_Limit": {
+      "min": 1438.3,
+      "max": 34516.0,
+      "mean": 8610.482482993199,
+      "std": 9071.29212165767
+    },
+    "Total_Revolving_Bal": {
+      "min": 0.0,
+      "max": 2517.0,
+      "mean": 1161.9439775910364,
+      "std": 815.48812149589
+    },
+    "Avg_Open_To_Buy": {
+      "min": 3.0,
+      "max": 34516.0,
+      "mean": 7448.538505402162,
+      "std": 9072.970108683896
+    },
+    "Total_Amt_Chng_Q4_Q1": {
+      "min": 0.0,
+      "max": 3.397,
+      "mean": 0.7563313325330132,
+      "std": 0.2154646457529629
+    },
+    "Total_Trans_Amt": {
+      "min": 510.0,
+      "max": 18484.0,
+      "mean": 4421.495998399359,
+      "std": 3403.385782787081
+    },
+    "Total_Trans_Ct": {
+      "min": 10.0,
+      "max": 139.0,
+      "mean": 65.04281712685074,
+      "std": 23.421341700476855
+    },
+    "Total_Ct_Chng_Q4_Q1": {
+      "min": 0.0,
+      "max": 3.714,
+      "mean": 0.7065043017206882,
+      "std": 0.22750403232440636
+    },
+    "Avg_Utilization_Ratio": {
+      "min": 0.0,
+      "max": 0.999,
+      "mean": 0.2750367146858743,
+      "std": 0.27604245664663035
+    },
+    "INV1_open_to_buy": 1.0,
+    "INV2_utilization": 1.0,
+    "contract_version": "1.1.0",
+    "n_rows": 9996,
+    "with_iot": false
+  },
+  "unresolved_anomalies": [
+    {
+      "columns": [
+        "Naive_Bayes_..._1",
+        "Naive_Bayes_..._2"
+      ],
+      "observation": "NB_2 escala ×1e5 (no encaja en regla de 3 decimales); NB_1 no complementa a NB_2. Segundo paso de manipulación.",
+      "action": "sin reparar; prohibidas para entrenamiento (FORBIDDEN_FOR_TRAINING)"
+    }
+  ],
+  "reproducibility": "requiere uv.lock pineado (pandas/numpy) — ver ADR-0004"
+}
