@@ -10,6 +10,8 @@ import pandas as pd
 import xgboost as xgb
 import joblib
 from pathlib import Path
+import hashlib, json as _json
+
 from sklearn.metrics import (
     roc_auc_score,
     classification_report,
@@ -229,3 +231,15 @@ def save_artifacts(
     joblib.dump(config, artifact_dir / "model_config.joblib")
 
     print(f"[train] ✅ Artefactos guardados en {artifact_dir}")
+
+
+def run_fingerprint(feature_order: list, scaler, threshold: float) -> str:
+    """Huella determinista del run: orden + scaler + umbral.
+    Si el sample pertenece a otro entrenamiento, la huella difiere."""
+    payload = _json.dumps({
+        "feature_order": list(feature_order),
+        "mean": [float(x) for x in scaler.mean_],
+        "scale": [float(x) for x in scaler.scale_],
+        "threshold": float(threshold),
+    }, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()

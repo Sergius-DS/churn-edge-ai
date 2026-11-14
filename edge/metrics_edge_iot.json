@@ -1,0 +1,165 @@
+{
+  "best_round": 200,
+  "best_auc_cv": 0.9981071874755816,
+  "cv_caveat": "CV sobre datos post-SMOTE: AUC de validación optimista. El número publicable es test_auc.",
+  "test_auc": 0.995073882553994,
+  "threshold": 0.22,
+  "threshold_criterion": "F2 sobre split interno de train (pre-SMOTE)",
+  "confusion_matrix": [
+    [
+      1568,
+      108
+    ],
+    [
+      5,
+      319
+    ]
+  ],
+  "tp": 319,
+  "fn": 5,
+  "fp": 108,
+  "tn": 1568,
+  "training_dataset_sha256": "a4183a2d0abea6efa4c5600e654c4d5ad62fc79378c3adc53e961ef207a03959",
+  "run_fingerprint": "0f5d6a5c9031b60ec4e2a0897acb5f27fdf524df445bb36d8968a1be9a0f418b",
+  "best_round_caveat": "best_round proviene del CV exterior (post-SMOTE); el modelo interno del threshold lo reutiliza. Sesgo leve, documentado.",
+  "n_train": 7996,
+  "n_test": 2000,
+  "n_features": 34,
+  "contract_report": {
+    "iot": true,
+    "saturation": {
+      "app_open_count_30d": {
+        "at_cap_frac": 0.0023761880940470236,
+        "cap": 80,
+        "max": 98.0
+      },
+      "contactless_usage_count_30d": {
+        "at_cap_frac": 0.0,
+        "cap": 60,
+        "max": 50.0
+      },
+      "payment_flow_abandon_count_30d": {
+        "at_cap_frac": 0.0,
+        "cap": 20,
+        "max": 8.0
+      },
+      "nfc_failed_attempts_30d": {
+        "at_cap_frac": 0.0,
+        "cap": 12,
+        "max": 6.0
+      },
+      "app_crash_count_30d": {
+        "at_cap_frac": 0.0,
+        "cap": 10,
+        "max": 4.0
+      },
+      "pos_latency_p95_ms": {
+        "at_cap_frac": 0.0,
+        "cap": 6000,
+        "max": 1926.0
+      }
+    }
+  },
+  "feature_importance_gain": [
+    {
+      "feature": "Total_Trans_Ct",
+      "gain": 211.50665283203125
+    },
+    {
+      "feature": "Total_Revolving_Bal",
+      "gain": 97.47798919677734
+    },
+    {
+      "feature": "Gender_M",
+      "gain": 93.15560913085938
+    },
+    {
+      "feature": "Months_Inactive_12_mon",
+      "gain": 92.7698745727539
+    },
+    {
+      "feature": "Avg_Utilization_Ratio",
+      "gain": 88.00921630859375
+    },
+    {
+      "feature": "Contacts_Count_12_mon",
+      "gain": 85.51060485839844
+    },
+    {
+      "feature": "Total_Relationship_Count",
+      "gain": 80.0416259765625
+    },
+    {
+      "feature": "Gender_F",
+      "gain": 79.26419830322266
+    },
+    {
+      "feature": "Marital_Status_Married",
+      "gain": 78.3467788696289
+    },
+    {
+      "feature": "Total_Trans_Amt",
+      "gain": 64.11500549316406
+    },
+    {
+      "feature": "Total_Ct_Chng_Q4_Q1",
+      "gain": 55.70762634277344
+    },
+    {
+      "feature": "app_crash_count_30d",
+      "gain": 54.4818115234375
+    },
+    {
+      "feature": "nfc_failed_attempts_30d",
+      "gain": 40.206748962402344
+    },
+    {
+      "feature": "Marital_Status_Single",
+      "gain": 39.22340393066406
+    },
+    {
+      "feature": "Dependent_count",
+      "gain": 38.84968948364258
+    },
+    {
+      "feature": "Credit_Limit",
+      "gain": 31.789270401000977
+    },
+    {
+      "feature": "Total_Amt_Chng_Q4_Q1",
+      "gain": 29.822389602661133
+    },
+    {
+      "feature": "Months_on_book",
+      "gain": 21.924463272094727
+    },
+    {
+      "feature": "Customer_Age",
+      "gain": 16.93243980407715
+    },
+    {
+      "feature": "Avg_Open_To_Buy",
+      "gain": 10.946759223937988
+    },
+    {
+      "feature": "Education_Level_ordinal",
+      "gain": 9.4166898727417
+    },
+    {
+      "feature": "payment_flow_abandon_count_30d",
+      "gain": 8.51632308959961
+    },
+    {
+      "feature": "Income_Category_is_unknown",
+      "gain": 8.063218116760254
+    },
+    {
+      "feature": "Income_Category_ordinal",
+      "gain": 7.769895076751709
+    },
+    {
+      "feature": "contactless_usage_count_30d",
+      "gain": 5.4950270652771
+    }
+  ]
+}
