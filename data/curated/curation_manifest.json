@@ -1,7 +1,7 @@
 {
   "contract_version": "1.1.0",
   "curation_rules_version": "1.0.0",
-  "created_at": "2026-11-13T23:02:01.837724+00:00",
+  "created_at": "2026-11-13T23:47:40.245975+00:00",
   "classification": "CURATED — no es BankChurners canónico",
   "source": {
     "path": "C:\\Proyectos_python\\churn-edge-ai\\data\\raw\\Credit_card_churn.csv",
@@ -11,7 +11,8 @@
     "git_first_commit": "2779afc",
     "never_modified_in_repo": true
   },
-  "script_sha256": "1112212f7c6583d6ca0b6d1dd302323eea9dad163020390f781aece7bda820b2",
+  "script_sha256": "2997cfa7c90f0812927e46732a491b651b35fba38ff6efe2bc94121c06a92de2",
+  "contract_sha256": "07a081a99a5a7610c7fbc72db3df9861e144755a5dd4c632ad4813bc2fa08197",
   "output": {
     "path": "C:\\Proyectos_python\\churn-edge-ai\\data\\curated\\churn_curated.csv",
     "sha256": "6bced2a3bf04db7b4fd24bf26eec045b8d3966b268b1b0b3a34c3e01fc23198b",

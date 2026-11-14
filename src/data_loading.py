@@ -1,199 +1,118 @@
 """
 src/data_loading.py
 ───────────────────
-Carga del CSV, eliminación de columnas de fuga,
-conversión del target y train/test split.
+Carga → validación de contrato (fail-closed) → drop leakage → target → split.
+NO coerciona. NO imputa. NO clip. Si el dato viola el contrato, se rechaza acá.
 """
-
-import pandas as pd
-import numpy as np
 from pathlib import Path
+import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from src.config import (
-    DATA_PATH,
-    TARGET,
-    SEED,
-    TEST_SIZE,
-    LEAKAGE_COLUMNS,
-    NUMERIC_LIKE_COLUMNS,
-    SYNTHETIC_IOT_CSV,
-    IOT_FEATURES,
+from src.config import DATA_PATH, TARGET, SEED, TEST_SIZE, SYNTHETIC_IOT_CSV
+from src.data_contract import (
+    validate, TARGET_MAP, FORBIDDEN_FOR_TRAINING, IOT_FEATURES, ContractViolation,
 )
 
 
-def load_raw_data(path: Path = DATA_PATH) -> pd.DataFrame:
-    """Carga el CSV y verifica que existe."""
-    assert path.exists(), f"No se encontró el archivo: {path}"
+def load_raw_data(path: Path = DATA_PATH, *, with_iot: bool = False,
+                  validate_contract: bool = True, stage: str = "curated") -> pd.DataFrame:
+    """
+    Carga y valida. validate_contract=False es un bypass EXPLÍCITO,
+    reservado a scripts forenses. Nunca al pipeline de entrenamiento.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el archivo: {path}")
     df = pd.read_csv(path)
-    print(f"[data_loading] Shape inicial: {df.shape}")
+    print(f"[data_loading] Shape inicial: {df.shape}  ({path.name})")
+
+    if validate_contract:
+        rep = validate(df, stage=stage, with_iot=with_iot)
+        print(f"[data_loading] ✅ Contrato v{rep['contract_version']} OK | "
+              f"INV-1 {rep['INV1_open_to_buy']:.2%} · INV-2 {rep['INV2_utilization']:.2%}")
+    else:
+        print("[data_loading] ⚠️  BYPASS de contrato (modo forense)")
     return df
 
 
 def drop_leakage_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Elimina columnas de fuga (Naive Bayes, CLIENTNUM)
-    y cualquier columna que contenga 'naive_bayes_classifier'.
-    """
-    nb_cols = [
-        col for col in df.columns
-        if "naive_bayes_classifier" in col.lower()
-    ]
-    cols_to_drop = list(set(LEAKAGE_COLUMNS + nb_cols))
-    cols_present = [col for col in cols_to_drop if col in df.columns]
-
-    df_clean = df.drop(columns=cols_present).copy()
-    print(f"[data_loading] Columnas eliminadas por leakage/ID: {cols_present}")
-    print(f"[data_loading] Shape después de limpiar: {df_clean.shape}")
-    return df_clean
+    """sorted() para logs deterministas: set() varía entre procesos."""
+    nb = [c for c in df.columns if "naive_bayes_classifier" in c.lower()]
+    cols = sorted(set(FORBIDDEN_FOR_TRAINING) | set(nb))
+    present = [c for c in cols if c in df.columns]
+    out = df.drop(columns=present).copy()
+    print(f"[data_loading] Leakage/ID eliminadas: {present} → {out.shape}")
+    return out
 
 
 def encode_target(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    """
-    Separa X e y. Convierte Attrition_Flag a binario:
-      'Existing Customer' → 0
-      'Attrited Customer' → 1
-    """
-    assert TARGET in df.columns, f"No se encontró la columna objetivo: {TARGET}"
-
-    y_raw = df[TARGET].copy()
+    """Única derivación del target: TARGET_MAP del contrato."""
+    if TARGET not in df.columns:
+        raise ContractViolation(f"No se encontró la columna objetivo: {TARGET}")
+    y_raw = df[TARGET]
     X = df.drop(columns=[TARGET])
 
     if y_raw.dtype == "object":
-        y_clean = y_raw.astype(str).str.strip()
-        class_map = {
-            "Existing Customer": 0,
-            "Attrited Customer": 1,
-        }
-        y = y_clean.map(class_map)
-
-        unmapped = y_clean[y.isna()].unique()
-        if len(unmapped) > 0:
-            raise ValueError(f"Categorías sin mapear en {TARGET}: {unmapped}")
-    else:
-        y = pd.to_numeric(y_raw, errors="coerce")
-        if y.isna().any():
-            raise ValueError("Hay valores nulos o no numéricos en la variable objetivo")
+        y = y_raw.astype(str).str.strip().map(TARGET_MAP)
+        unmapped = y_raw.astype(str).str.strip()[y.isna()].unique()
+        if len(unmapped):
+            raise ContractViolation(f"Categorías sin mapear en {TARGET}: {unmapped}")
         y = y.astype(int)
+    else:
+        y = pd.to_numeric(y_raw, errors="raise").astype(int)
 
-    assert y.notna().all(), "La variable objetivo tiene valores nulos"
-    print(f"[data_loading] Target convertido: {y.value_counts().to_dict()}")
+    invalid = set(y.unique()) - {0, 1}
+    if invalid:
+        raise ContractViolation(f"{TARGET} con valores fuera de {{0,1}}: {sorted(invalid)}")
+    print(f"[data_loading] Target: {y.value_counts().to_dict()} "
+          f"| prevalencia={y.mean():.5f}")
     return X, y
 
 
-def split_data(
-    X: pd.DataFrame,
-    y: pd.Series,
-    test_size: float = TEST_SIZE,
-    seed: int = SEED,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-    """Train/test split estratificado."""
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=test_size,
-        stratify=y,
-        random_state=seed,
-    )
-    print(f"[data_loading] X_train: {X_train.shape} | X_test: {X_test.shape}")
-    return X_train, X_test, y_train, y_test
+def split_data(X, y, test_size: float = TEST_SIZE, seed: int = SEED):
+    Xtr, Xte, ytr, yte = train_test_split(
+        X, y, test_size=test_size, stratify=y, random_state=seed)
+    print(f"[data_loading] X_train {Xtr.shape} | X_test {Xte.shape}")
+    return Xtr, Xte, ytr, yte
 
 
-def convert_numeric_like(
-    X_train: pd.DataFrame,
-    X_test: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Convierte columnas que parecen numéricas pero vienen como object."""
-    X_train = X_train.copy()
-    X_test = X_test.copy()
-
-    for col in NUMERIC_LIKE_COLUMNS:
-        if col in X_train.columns and col in X_test.columns:
-            X_train[col] = pd.to_numeric(X_train[col], errors="coerce")
-            X_test[col] = pd.to_numeric(X_test[col], errors="coerce")
-            print(f"[data_loading] Convertida a numérica: {col}")
-
-    return X_train, X_test
+def verify_no_leakage(X_train: pd.DataFrame, X_test: pd.DataFrame) -> None:
+    for name, X in (("train", X_train), ("test", X_test)):
+        bad = [c for c in X.columns
+               if "naive_bayes" in c.lower() or "attrition_flag" in c.lower()
+               or c in FORBIDDEN_FOR_TRAINING]
+        if bad:
+            raise ContractViolation(f"Fuga de datos en {name}: {bad}")
+    print("[data_loading] ✅ Sin columnas con fuga (train y test)")
 
 
-def convert_iot_numeric(
-    X_train: pd.DataFrame,
-    X_test: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_and_prepare(path: Path = None, with_iot: bool = False):
     """
-    Convierte explícitamente las features IoT a numéricas.
-    Esto previene errores si el CSV sintético guardó algún conteo como string.
-    """
-    X_train = X_train.copy()
-    X_test = X_test.copy()
-
-    for col in IOT_FEATURES:
-        if col in X_train.columns:
-            X_train[col] = pd.to_numeric(X_train[col], errors="coerce")
-
-        if col in X_test.columns:
-            X_test[col] = pd.to_numeric(X_test[col], errors="coerce")
-
-    return X_train, X_test
-
-
-def verify_no_leakage(X_train: pd.DataFrame) -> None:
-    """Assert final: que no quedaron columnas con fuga."""
-    bad_cols = [
-        col for col in X_train.columns
-        if "naive_bayes" in col.lower() or "attrition_flag" in col.lower()
-    ]
-    assert len(bad_cols) == 0, f"Posible fuga de datos en features: {bad_cols}"
-    print("[data_loading] ✅ OK: no se detectan columnas con fuga aparente")
-
-
-def load_and_prepare(
-    path: Path = None,
-    with_iot: bool = False,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-    """
-    Pipeline completo de carga y preparación.
-
-    Si with_iot=True:
-        carga data/processed/credit_card_churn_iot_synthetic.csv
-
-    Si with_iot=False:
-        carga data/raw/Credit_card_churn.csv
+    SSOT: data/curated/churn_curated.csv (o el sintético si with_iot=True).
+    Las coerciones NUMERIC_LIKE / IoT fueron ELIMINADAS: el contrato garantiza dtype.
     """
     if path is not None and with_iot:
         raise ValueError("No uses path y with_iot=True al mismo tiempo.")
-
     if path is None:
         path = SYNTHETIC_IOT_CSV if with_iot else DATA_PATH
-
     path = Path(path)
 
     if with_iot and not path.exists():
         raise FileNotFoundError(
             f"No se encontró el dataset IoT: {path}. "
-            "Ejecuta primero: python scripts/generate_synthetic_iot.py"
-        )
+            "Ejecuta: python scripts/generate_synthetic_iot.py")
 
-    df = load_raw_data(path)
-    df_clean = drop_leakage_columns(df)
-
-    X, y = encode_target(df_clean)
-
-    X_train, X_test, y_train, y_test = split_data(X, y)
-
-    X_train, X_test = convert_numeric_like(X_train, X_test)
-    X_train, X_test = convert_iot_numeric(X_train, X_test)
+    df = load_raw_data(path, with_iot=with_iot,
+                       stage="iot" if with_iot else "curated")
+    X, y = encode_target(drop_leakage_columns(df))
+    Xtr, Xte, ytr, yte = split_data(X, y)
 
     if with_iot:
-        missing_train = [c for c in IOT_FEATURES if c not in X_train.columns]
-        missing_test = [c for c in IOT_FEATURES if c not in X_test.columns]
+        for name, X in (("train", Xtr), ("test", Xte)):
+            miss = [c for c in IOT_FEATURES if c not in X.columns]
+            if miss:
+                raise ContractViolation(f"Faltan IoT features en {name}: {miss}")
 
-        assert not missing_train, f"Faltan IoT features en train: {missing_train}"
-        assert not missing_test, f"Faltan IoT features en test: {missing_test}"
-
-    verify_no_leakage(X_train)
-
-    # Assertions de consistencia
-    assert X_train.shape[0] == y_train.shape[0]
-    assert X_test.shape[0] == y_test.shape[0]
-
-    return X_train, X_test, y_train, y_test
+    verify_no_leakage(Xtr, Xte)
+    assert Xtr.shape[0] == ytr.shape[0] and Xte.shape[0] == yte.shape[0]
+    return Xtr, Xte, ytr, yte
