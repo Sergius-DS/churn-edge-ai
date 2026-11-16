@@ -71,21 +71,42 @@ fn iot_raw_input_parity_with_python() {
         expected, got, diff, TOLERANCE
     );
 
-    // ── Verificaciones adicionales ──
+    // ── Verificaciones adicionales (leídas de los artefactos, no hardcodeadas) ──
+    let contract_v: serde_json::Value = serde_json::from_str(&contract_json)
+        .expect("contrato IoT con JSON inválido");
+    let model_v: serde_json::Value = serde_json::from_str(&model_json)
+        .expect("modelo IoT con JSON inválido");
+
+    let exp_threshold = contract_v["best_threshold"]
+        .as_f64()
+        .expect("contrato sin best_threshold");
+    let exp_features = contract_v["n_features"]
+        .as_u64()
+        .expect("contrato sin n_features");
+
+    // El largo del array ES el conteo. Leer, no re-derivar por substring.
+    // El JSON de XGBoost usa arrays paralelos (left_children, right_children,
+    // split_indices, split_conditions, base_weights, sum_hessian), no objetos-nodo.
+    // "nodeid" no existe en este formato — era un falso amigo del text dump.
+    let exp_trees = model_v["learner"]["gradient_booster"]["model"]["trees"]
+        .as_array()
+        .expect("modelo sin learner.gradient_booster.model.trees")
+        .len() as u64;
+
+    assert!(
+        (res["threshold"].as_f64().unwrap() - exp_threshold).abs() < 1e-12,
+        "Rust debe reportar el threshold del contrato: got={} exp={}",
+        res["threshold"], exp_threshold
+    );
     assert_eq!(
         res["n_features"].as_u64().unwrap(),
-        34,
-        "El modelo IoT debe tener 34 features"
+        exp_features,
+        "Rust debe reportar n_features del contrato"
     );
     assert_eq!(
         res["n_trees"].as_u64().unwrap(),
-        200,
-        "El modelo IoT debe tener 200 árboles"
-    );
-    assert_eq!(
-        res["threshold"].as_f64().unwrap(),
-        0.33,
-        "El threshold IoT debe ser 0.33"
+        exp_trees,
+        "Rust debe reportar los árboles del modelo exportado"
     );
 }
 
@@ -124,9 +145,18 @@ fn iot_privacy_firewall_blocks_forbidden_fields() {
     println!("✅ Firewall de privacidad funcionó: {}", error_msg);
 }
 
-/// Test adicional: verificar que el clipping IoT funciona.
+/// CHARACTERIZATION TEST — fija el comportamiento ACTUAL, no el deseado.
+///
+/// GAP CONOCIDO (hueco 1): el preprocessing clipea fuera de rango SIN flag.
+/// 9999 aperturas en 30 días (333/día) produce una predicción plausible,
+/// sin error y sin marcador de degradación. En CI dio 45.54% — zona de
+/// máxima incertidumbre, exactamente donde un input imposible debería
+/// rechazarse en lugar de responderse con una decisión de negocio.
+///
+/// AL CERRAR EL HUECO 1: invertir el assert. Exigir `clipped`/`degraded`,
+/// no la ausencia de error. Este test debe fallar en ese commit.
 #[test]
-fn iot_bounds_clipping_works() {
+fn iot_out_of_bounds_is_silently_clipped_characterization() {
     let model_json = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
     let contract_json = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
 
@@ -134,6 +164,8 @@ fn iot_bounds_clipping_works() {
     churn_wasm::init_engine(&model_json, &contract_json).expect("Failed to init engine");
 
     // app_open_count_30d tiene bound [0, 365]. Enviamos 9999.
+    // Avg_Utilization_Ratio corregido a 0.061 (= 777/12691) para cumplir INV-2.
+    // Antes tenía 0.22, que violaba la identidad algebraica del contrato.
     let out_of_bounds_input = serde_json::json!({
         "Customer_Age": 45,
         "Gender": "F",
@@ -153,8 +185,8 @@ fn iot_bounds_clipping_works() {
         "Total_Trans_Amt": 3500,
         "Total_Trans_Ct": 45,
         "Total_Ct_Chng_Q4_Q1": 0.69,
-        "Avg_Utilization_Ratio": 0.22,
-        "app_open_count_30d": 9999,  // ← Fuera de bounds (debe cliparse a 365)
+        "Avg_Utilization_Ratio": 0.061,  // ← corregido: 777/12691 = 0.061 (antes 0.22, violaba INV-2)
+        "app_open_count_30d": 9999,      // ← Fuera de bounds (debe cliparse a 365)
         "contactless_usage_count_30d": 58,
         "payment_flow_abandon_count_30d": 5,
         "nfc_failed_attempts_30d": 3,
@@ -180,5 +212,6 @@ fn iot_bounds_clipping_works() {
         proba
     );
 
-    println!("✅ Clipping IoT funcionó. Proba con out-of-bounds input: {:.4}%", proba * 100.0);
+    println!("✅ CHARACTERIZATION: clipping silencioso funcionó. Proba con out-of-bounds input: {:.4}%", proba * 100.0);
+    println!("   ⚠️  Este comportamiento es el DEFECTO. Ver docstring del test.");
 }

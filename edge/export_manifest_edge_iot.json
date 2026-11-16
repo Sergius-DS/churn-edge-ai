@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-11-15T09:50:23.141447+00:00",
+  "export_script_sha256": "175d5a1a686631c0af9b2c039c8a841e92d2630d41198455769a6c9b1021efda",
+  "run_fingerprint": "0f5d6a5c9031b60ec4e2a0897acb5f27fdf524df445bb36d8968a1be9a0f418b",
+  "training_dataset_sha256": "a4183a2d0abea6efa4c5600e654c4d5ad62fc79378c3adc53e961ef207a03959",
+  "model_sha256": "d55f3f494e76d9bcbbc8da6daac29446319f6cd9b54ee2ec61791110ed60c25a",
+  "contract_sha256": "9ccb11b4b4ef9adb277f85192ee34245217a72e532576f1b8b66cce8ac835da1",
+  "parity_sample_sha256": "c2aeff8f6df6ba61fa4dcb22a19e5607c4161e36085634b520d90cdb7f53f08b",
+  "raw_parity_sha256": "d920d5be31a772b59e21e42033b5dc6a46760d6daa701d699f66fd7b52fb9a9a",
+  "metrics_sha256": "a810b555e5fc35c91808d6ea9aed3945113f27e64900c4e9fd267f359ef4ad1e",
+  "volatile_fields_relocated": [
+    "created_at"
+  ]
+}

@@ -140,16 +140,3 @@ pub fn preprocess<'a>(
         feature_names: contract.feature_order.clone(), 
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_onehot_logic() {
-        // Si Gender = "F", Gender_F debe ser 1.0
-        // Si Gender = "M", Gender_F debe ser 0.0
-        assert_eq!(if "F" == "F" { 1.0 } else { 0.0 }, 1.0);
-        assert_eq!(if "M" == "F" { 1.0 } else { 0.0 }, 0.0);
-    }
-}

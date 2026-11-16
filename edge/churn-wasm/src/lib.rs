@@ -2,10 +2,10 @@
 // Entry point del módulo WASM.
 // Exporta funciones que JavaScript puede llamar.
 
-mod contract;
-mod inference;
-mod model;
-mod preprocessing;
+pub mod contract;
+pub mod preprocessing;
+pub mod model;
+pub mod inference;
 
 use wasm_bindgen::prelude::*;
 use serde_json::Value;

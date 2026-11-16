@@ -1,0 +1,79 @@
+{
+  "measured_on": "train split del curated",
+  "curated_sha256": "6bced2a3bf04db7b4fd24bf26eec045b8d3966b268b1b0b3a34c3e01fc23198b",
+  "n_train": 7996,
+  "seed": 44,
+  "test_size": 0.2,
+  "stratified_by": "Attrition_Flag",
+  "std_ddof": 1,
+  "script_sha256": "edc9bad9b5edcff3deb0ef2c2d4120bb55da776f5dc5af4e401ca4b3d8d6feba",
+  "previous_values": {
+    "Total_Trans_Ct": [
+      140.0,
+      58.0
+    ],
+    "Total_Trans_Amt": [
+      4600.0,
+      2600.0
+    ],
+    "Months_Inactive_12_mon": [
+      2.3,
+      1.1
+    ],
+    "Contacts_Count_12_mon": [
+      2.4,
+      1.2
+    ],
+    "Avg_Utilization_Ratio": [
+      0.53,
+      0.26
+    ],
+    "Total_Ct_Chng_Q4_Q1": [
+      0.95,
+      0.25
+    ],
+    "Total_Amt_Chng_Q4_Q1": [
+      0.95,
+      0.25
+    ],
+    "Total_Relationship_Count": [
+      4.3,
+      1.1
+    ]
+  },
+  "new_values": {
+    "Total_Trans_Ct": [
+      65.2112,
+      23.3703
+    ],
+    "Total_Trans_Amt": [
+      4446.1595,
+      3412.3573
+    ],
+    "Months_Inactive_12_mon": [
+      2.3488,
+      1.0054
+    ],
+    "Contacts_Count_12_mon": [
+      2.4577,
+      1.1089
+    ],
+    "Avg_Utilization_Ratio": [
+      0.2764,
+      0.2775
+    ],
+    "Total_Ct_Chng_Q4_Q1": [
+      0.7058,
+      0.2231
+    ],
+    "Total_Amt_Chng_Q4_Q1": [
+      0.7576,
+      0.2167
+    ],
+    "Total_Relationship_Count": [
+      3.8034,
+      1.5517
+    ]
+  },
+  "defect_corrected": "Total_Trans_Ct usaba (140,58): el máximo, no la media. Independiente de la corrupción del origen."
+}

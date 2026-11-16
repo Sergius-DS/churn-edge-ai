@@ -72,14 +72,3 @@ impl XgbModel {
         self.learner.gradient_booster.model.trees.len()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_base_score_conversion() {
-        let raw = (0.5_f64 / (1.0 - 0.5)).ln();
-        assert!((raw - 0.0).abs() < 1e-10);
-    }
-}

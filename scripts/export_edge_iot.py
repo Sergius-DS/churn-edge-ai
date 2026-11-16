@@ -16,6 +16,7 @@ Genera:
 import json
 import hashlib
 from datetime import datetime, timezone
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -32,7 +33,10 @@ from src.config import (
     IOT_FEATURE_BOUNDS,
     INCOME_ORDER,
     EDUCATION_ORDER,
+    SEED,
+    SYNTHETIC_IOT_CSV,
 )
+from src.train import run_fingerprint
 
 
 def sha256_file(path):
@@ -41,6 +45,26 @@ def sha256_file(path):
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _extract_xgboost_metadata(model_json_path) -> dict:
+    """Lee base_score del JSON de XGBoost. Falla si no existe."""
+    model_obj = json.loads(model_json_path.read_text(encoding="utf-8"))
+    base_score = (
+        model_obj.get("learner", {})
+        .get("learner_model_param", {})
+        .get("base_score")
+    )
+    if base_score is None:
+        raise ValueError(
+            "base_score ausente en el JSON del modelo. "
+            "No se puede hardcodear sin romper reproducibilidad."
+        )
+    return {
+        "base_score_param": base_score,
+        "base_raw_hint": 0.0,
+        "note": "Leído del learner_model_param del modelo exportado.",
+    }
 
 
 def preprocess_raw_case(raw: dict, contract: dict) -> np.ndarray:
@@ -96,7 +120,10 @@ def preprocess_raw_case(raw: dict, contract: dict) -> np.ndarray:
         elif name in onehot:
             feats.append(onehot[name])
         else:
-            feats.append(0.0)
+            raise KeyError(
+                f"Feature '{name}' no cubierta por numeric, ordinal ni onehot. "
+                f"Revisar feature_order vs contrato."
+            )
 
     # 6) StandardScaler
     mean = np.array(contract["scaler"]["mean"], dtype=np.float64)
@@ -142,9 +169,59 @@ def main() -> None:
     feature_order = config.get("feature_order", [])
     threshold = config.get("best_threshold", 0.5)
 
+    if not feature_order:
+        raise ValueError("model_config.joblib sin feature_order: no se puede verificar linaje")
+
     print(f"[export_edge_iot] Modelo cargado: {model.num_boosted_rounds()} árboles")
     print(f"[export_edge_iot] Features: {len(feature_order)}")
     print(f"[export_edge_iot] Threshold: {threshold}")
+
+    # ── Gate de procedencia (Fix C1): verificar linaje del sample ──
+    fp = run_fingerprint(feature_order, scaler, threshold)
+    prov_path = EDGE_IOT_ARTIFACTS_DIR / "sample_provenance.json"
+    if not prov_path.exists():
+        raise FileNotFoundError(
+            f"Falta {prov_path.name}: la muestra de paridad no tiene procedencia. "
+            "Re-ejecutar scripts/train_edge_iot_model.py."
+        )
+    prov = json.loads(prov_path.read_text(encoding="utf-8"))
+    if prov.get("run_fingerprint") != fp:
+        raise ValueError(
+            "X_test_scaled_sample.csv pertenece a OTRO linaje: "
+            f"sample={str(prov.get('run_fingerprint'))[:16]} vs run={fp[:16]}. "
+            "Re-ejecutar train_edge_iot_model.py."
+        )
+    print(f"[export_edge_iot] ✅ Linaje del sample verificado ({fp[:16]})")
+    
+    # ── Publicar métricas: el umbral del contrato necesita su justificación trackeada ──
+    # model_artifacts/ está ignorado por git. Un metrics.json que vive ahí no es
+    # evidencia: es un archivo local. Se publica en edge/, junto al contrato.
+    metrics_src = EDGE_IOT_ARTIFACTS_DIR / "metrics.json"
+    if not metrics_src.exists():
+        raise FileNotFoundError(
+            "Falta metrics.json: el contrato declararía un best_threshold sin "
+            "justificación registrada. Re-ejecutar train_edge_iot_model.py.")
+    metrics_obj = json.loads(metrics_src.read_text(encoding="utf-8"))
+
+    # Tercera verificación de huella: las métricas deben ser del mismo run.
+    if metrics_obj.get("run_fingerprint") != fp:
+        raise ValueError(
+            "metrics.json pertenece a OTRO linaje: "
+            f"metrics={str(metrics_obj.get('run_fingerprint'))[:16]} vs run={fp[:16]}. "
+            "Re-ejecutar train_edge_iot_model.py.")
+
+    # Y del mismo dataset. Dos runs con config idéntica comparten huella;
+    # el hash del dato es lo que los distingue.
+    if metrics_obj.get("training_dataset_sha256") != prov["training_dataset_sha256"]:
+        raise ValueError(
+            "metrics.json y sample_provenance.json apuntan a datasets distintos. "
+            "Re-ejecutar train_edge_iot_model.py.")
+
+    metrics_pub = EDGE_DIR / "metrics_edge_iot.json"
+    metrics_pub.write_text(
+        json.dumps(metrics_obj, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"[export_edge_iot] ✅ Métricas publicadas → {metrics_pub.name} "
+          f"(test_auc={metrics_obj['test_auc']:.6f}, thr={metrics_obj['threshold']})")
 
     # ── Exportar modelo XGBoost JSON ──
     model.save_model(EDGE_IOT_MODEL_JSON)
@@ -153,10 +230,7 @@ def main() -> None:
 
     # ── Muestra de paridad (escalada) ──
     sample = pd.read_csv(sample_path)
-    if feature_order:
-        sample = sample[feature_order]
-    else:
-        feature_order = list(sample.columns)
+    sample = sample[feature_order]
 
     X_sample = sample.values.astype(np.float32)
 
@@ -174,6 +248,8 @@ def main() -> None:
         "feature_order": feature_order,
         "n_samples": int(X_sample.shape[0]),
         "n_features": int(X_sample.shape[1]),
+        "dtype": "float32",
+        "parity_tolerance": {"proba_abs": 1e-6},
     }
     parity_sample_path = EDGE_DIR / "parity_sample_edge_iot.json"
     parity_sample_path.write_text(
@@ -216,25 +292,35 @@ def main() -> None:
         "education_median": float(ordinal_medians[1]) if len(ordinal_medians) > 1 else 3.0,
     }
 
-    # ── OneHot (robusto, desde categories_) ──
+    # ── OneHot (nombres desde el encoder, no re-derivados) ──
     categories_dict = {}
     category_feature_pairs = []
-    encoded_feature_names = []
 
     if hasattr(encoder, "categories_"):
         input_cols = list(getattr(encoder, "feature_names_in_", []))
         for col, cats in zip(input_cols, encoder.categories_):
             categories_dict[col] = [str(c) for c in cats]
-
-        for col, cats in zip(input_cols, encoder.categories_):
-            for cat in cats:
-                feat_name = f"{col}_{cat}"
-                encoded_feature_names.append(feat_name)
-                category_feature_pairs.append({
-                    "column": col,
-                    "category": str(cat),
-                    "feature": feat_name,
-                })
+        
+        # Fix #7: usar get_feature_names_out(), no f-string manual
+        encoded_feature_names = list(encoder.get_feature_names_out(input_cols))
+        assert set(encoded_feature_names) <= set(feature_order), (
+            f"OneHot produce nombres fuera de feature_order: "
+            f"{set(encoded_feature_names) - set(feature_order)}"
+        )
+        
+        # Reconstruir pairs usando los nombres reales del encoder
+        for feat_name, col, cat in zip(
+            encoded_feature_names,
+            (c for c in input_cols for _ in categories_dict[c]),
+            (cat for c in input_cols for cat in categories_dict[c]),
+        ):
+            category_feature_pairs.append({
+                "column": col,
+                "category": str(cat),
+                "feature": feat_name,
+            })
+    else:
+        encoded_feature_names = []
 
     onehot_cfg = {
         "columns": list(categories_dict.keys()),
@@ -258,14 +344,13 @@ def main() -> None:
         for k, (lo, hi) in IOT_FEATURE_BOUNDS.items()
     }
 
-    # ── Contrato completo ──
+    # ── Contrato completo (Fix C2: sin created_at para byte-determinismo) ──
     contract = {
-        "version": 1,
+        "version": 2,                                    # Fix #3: era 1
         "model_type": "edge_iot",
-        "created_at": datetime.now(timezone.utc).isoformat(),
         "target": "Attrition_Flag",
         "best_threshold": float(threshold),
-        "seed": 44,
+        "seed": int(SEED),                               # Fix #4: era 44 hardcodeado
         "feature_order": feature_order,
         "n_features": len(feature_order),
 
@@ -289,11 +374,7 @@ def main() -> None:
         "scaler": scaler_cfg,
 
         # XGBoost metadata
-        "xgboost": {
-            "base_score_param": "[5E-1]",
-            "base_raw_hint": 0.0,
-            "note": "Validar base_score con parity_sample_edge_iot.json.",
-        },
+        "xgboost": _extract_xgboost_metadata(EDGE_IOT_MODEL_JSON),
 
         # Output
         "output": {
@@ -322,49 +403,90 @@ def main() -> None:
     print(f"[export_edge_iot] ✅ Consistencia: scaler={n_scaler}, "
           f"features={n_features}, onehot={n_onehot}")
 
+    # ── Checkpoint 3: la réplica del contrato debe reproducir el pipeline sklearn ──
+    raw_sample_path = EDGE_IOT_ARTIFACTS_DIR / "X_test_raw_sample.csv"
+    if not raw_sample_path.exists():
+        raise FileNotFoundError(
+            f"Falta {raw_sample_path.name}: sin él no se puede verificar que "
+            "preprocess_raw_case replica el pipeline de entrenamiento. "
+            "Re-ejecutar train_edge_iot_model.py.")
+    raw_sample = pd.read_csv(raw_sample_path)
+    
+    # FIX: Alineación de longitud (la huella no certifica que ambos CSV tengan el mismo N)
+    if len(raw_sample) != len(X_sample):
+        raise ValueError(
+            f"raw/scaled desalineados: raw={len(raw_sample)} vs scaled={len(X_sample)}. "
+            "Re-ejecutar train_edge_iot_model.py."
+        )
+
+    n_chk = min(10, len(raw_sample))
+    worst = 0.0
+    for k in range(n_chk):
+        row = {c: (None if pd.isna(v) else v)
+               for c, v in raw_sample.iloc[k].to_dict().items()}
+        rep = preprocess_raw_case(row, contract).astype(np.float32)
+        worst = max(worst, float(np.max(np.abs(rep - X_sample[k]))))
+    if worst > 1e-5:
+        raise ValueError(
+            f"preprocess_raw_case NO replica el pipeline sklearn: max|Δ|={worst:.3e}. "
+            "El golden sería auto-consistente con Rust pero distinto del entrenamiento.")
+    print(f"[export_edge_iot] ✅ Réplica≡sklearn ({n_chk} filas, max|Δ|={worst:.3e})")
+
     # ── raw_parity_case_iot.json (para tests/parity_raw_iot.rs) ──
-    RAW_IOT_INPUT = {
-        "Customer_Age": 45,
-        "Gender": "F",
-        "Dependent_count": 3,
-        "Education_Level": "Graduate",
-        "Marital_Status": "Married",
-        "Income_Category": "$60K - $80K",
-        "Card_Category": "Blue",
-        "Months_on_book": 39,
-        "Total_Relationship_Count": 5,
-        "Months_Inactive_12_mon": 2,
-        "Contacts_Count_12_mon": 3,
-        "Credit_Limit": 12691.0,
-        "Total_Revolving_Bal": 777,
-        "Avg_Open_To_Buy": 11914.0,
-        "Total_Amt_Chng_Q4_Q1": 0.8,
-        "Total_Trans_Amt": 3500,
-        "Total_Trans_Ct": 45,
-        "Total_Ct_Chng_Q4_Q1": 0.69,
-        "Avg_Utilization_Ratio": 0.22,
-        # 6 features IoT (valores dentro de bounds)
-        "app_open_count_30d": 76,
-        "contactless_usage_count_30d": 58,
-        "payment_flow_abandon_count_30d": 5,
-        "nfc_failed_attempts_30d": 3,
-        "app_crash_count_30d": 2,
-        "pos_latency_p95_ms": 1500,
-    }
+    # Fix #1: fila REAL del dataset IoT, no un cliente ensamblado a mano.
+    # Fix #2: doble checkpoint (expected_scaled + expected_proba).
+    # Fix C3: alinear dtypes a f32 para consistencia con XGBoost
+    iot_df = pd.read_csv(SYNTHETIC_IOT_CSV)
+    golden_row = iot_df.iloc[len(iot_df) // 2]  # determinista: fila central
+
+    # Extraer solo las columnas que el contrato espera como input raw
+    raw_cols = raw_numeric_columns + raw_categorical_columns
+    RAW_IOT_INPUT = {}
+    for c in raw_cols:
+        val = golden_row[c]
+        if hasattr(val, "item"):
+            RAW_IOT_INPUT[c] = val.item()
+        else:
+            RAW_IOT_INPUT[c] = val
+
+    # El golden DEBE cumplir las identidades algebraicas del contrato.
+    assert abs(
+        RAW_IOT_INPUT["Avg_Open_To_Buy"]
+        - (RAW_IOT_INPUT["Credit_Limit"] - RAW_IOT_INPUT["Total_Revolving_Bal"])
+    ) < 0.01, (
+        f"Golden viola INV-1: Open_To_Buy={RAW_IOT_INPUT['Avg_Open_To_Buy']} "
+        f"pero Limit-Revolving="
+        f"{RAW_IOT_INPUT['Credit_Limit'] - RAW_IOT_INPUT['Total_Revolving_Bal']}"
+    )
+    rebuilt_util = round(
+        RAW_IOT_INPUT["Total_Revolving_Bal"] / RAW_IOT_INPUT["Credit_Limit"], 3
+    )
+    assert abs(RAW_IOT_INPUT["Avg_Utilization_Ratio"] - rebuilt_util) < 0.0011, (
+        f"Golden viola INV-2: Utilización={RAW_IOT_INPUT['Avg_Utilization_Ratio']} "
+        f"pero Reconstruida={rebuilt_util}"
+    )
 
     scaled_raw = preprocess_raw_case(RAW_IOT_INPUT, contract)
+    scaled_raw_f32 = scaled_raw.astype(np.float32)     # ← Fix C3: alinear con XGBoost
     dmat_raw = xgb.DMatrix(
-        scaled_raw.reshape(1, -1),
+        scaled_raw_f32.reshape(1, -1),                 # ← f32
         feature_names=feature_order,
     )
     raw_proba = float(model.predict(dmat_raw)[0])
 
     raw_parity_case = {
         "description": (
-            "Golden case RAW→proba para Edge IoT. "
+            "Golden RAW→scaled→proba. Fila real del curated+IoT. "
             "Rust debe replicar el preprocessing completo."
         ),
+        "source_clientnum": int(golden_row["CLIENTNUM"]),
         "raw": RAW_IOT_INPUT,
+        "expected_scaled": scaled_raw_f32.tolist(),    # ← f32 (consistente)
+        "scaled_dtype": "float32",                     # ← Fix C3: declarado
+        "parity_tolerance": {                          # ← Fix C3: tolerancia explícita
+            "scaled_abs": 1e-5,
+            "proba_abs": 1e-6,
+        },
         "expected_proba": raw_proba,
         "expected_proba_pct": raw_proba * 100.0,
     }
@@ -376,6 +498,26 @@ def main() -> None:
     )
     print(f"[export_edge_iot] ✅ Raw parity case → {raw_parity_path}")
     print(f"[export_edge_iot]    Proba esperada: {raw_proba * 100:.4f}%")
+
+    # ── Export manifest (Fix C4: procedencia volcada fuera del contrato) ──
+    export_manifest = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "export_script_sha256": sha256_file(Path(__file__)),
+        "run_fingerprint": fp,
+        "training_dataset_sha256": prov["training_dataset_sha256"],
+        "model_sha256": model_sha256,
+        "contract_sha256": sha256_file(EDGE_IOT_CONTRACT_JSON),
+        "parity_sample_sha256": sha256_file(parity_sample_path),
+        "raw_parity_sha256": sha256_file(raw_parity_path),
+        "metrics_sha256": sha256_file(metrics_pub),
+        "volatile_fields_relocated": ["created_at"],
+    }
+    manifest_path = EDGE_DIR / "export_manifest_edge_iot.json"
+    manifest_path.write_text(
+        json.dumps(export_manifest, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"[export_edge_iot] ✅ Manifest → {manifest_path}")
 
     print("\n" + "=" * 70)
     print("🎉 Exportación Edge IoT completada")
