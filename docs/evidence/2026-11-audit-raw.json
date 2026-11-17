@@ -1,0 +1,31 @@
+{
+  "run_id": 43650566838,
+  "run_url": "https://github.com/Sergius-DS/churn-edge-ai/actions/runs/43650566838",
+  "run_event": "pull_request",
+  "run_branch": "audit/synthetic-iot-provenance",
+  "head_sha": "286c6cf7299df22f2f5718345f7d5233a00f2ecd",
+  "tag": "audit-raw-decimal",
+  "jobs": {
+    "Python parity checks": "success",
+    "Rust tests + WASM build": "failure"
+  },
+  "contract_threshold_at_tag": 0.22,
+  "test_expectation_at_tag": 0.33,
+  "failure_excerpt_file": "2026-11-audit-raw.log",
+  "dataset_sha256": "41f4e92afcf6909c5ad3130e4c5dc9f9d97f3eb7dfe5ea1ad8beeca0d9cffa59",
+  "gate_violations": [
+    "Total_Amt_Chng_Q4_Q1: fuera de [0.0,5.0]",
+    "Total_Ct_Chng_Q4_Q1: fuera de [0.0,5.0]",
+    "Avg_Utilization_Ratio: fuera de [0.0,1.0]",
+    "INV-2 violada (identidad algebraica: revolvente / límite)"
+  ],
+  "counts": {
+    "rows": 10127,
+    "non_mutated": 3247,
+    "unrecoverable_cells": 131,
+    "rows_removed": 131,
+    "attrited_removed": 8,
+    "attrited_expected": 21.05,
+    "z": -3.10
+  }
+}
