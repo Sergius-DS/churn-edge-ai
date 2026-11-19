@@ -11,21 +11,80 @@
   },
   "contract_threshold_at_tag": 0.22,
   "test_expectation_at_tag": 0.33,
+  "parity_max_diff_at_run": 1.81e-11,
   "failure_excerpt_file": "2026-11-audit-raw.log",
+  "failure_excerpt_scope": "Slice contiguo y verbatim del step 'cargo test -- --nocapture', test binary tests/parity_raw_iot.rs. Se omiten los binaries anteriores (lib, contract_live, parity_raw). Sin reordenamiento ni headers agregados.",
   "dataset_sha256": "41f4e92afcf6909c5ad3130e4c5dc9f9d97f3eb7dfe5ea1ad8beeca0d9cffa59",
+  "gate_violations_command": "python -c \"import pandas as pd, src.data_contract as dc; dc.validate(pd.read_csv('data/raw/Credit_card_churn.csv'), stage='raw')\"",
   "gate_violations": [
-    "Total_Amt_Chng_Q4_Q1: fuera de [0.0,5.0]",
-    "Total_Ct_Chng_Q4_Q1: fuera de [0.0,5.0]",
-    "Avg_Utilization_Ratio: fuera de [0.0,1.0]",
-    "INV-2 violada (identidad algebraica: revolvente / límite)"
+    "Total_Amt_Chng_Q4_Q1: no numérico (Unable to parse string \"2024-03-01 00:00:00\" at position 158)",
+    "Total_Ct_Chng_Q4_Q1: no numérico (Unable to parse string \"2024-05-02 00:00:00\" at position 4)",
+    "Avg_Utilization_Ratio: 6880 fuera de [0.0,1.0] (min=0 max=999)",
+    "INV-2 violada: 32.0628%"
   ],
   "counts": {
     "rows": 10127,
-    "non_mutated": 3247,
+    "utilization_out_of_bounds": 6880,
+    "inverted_crosscheck_manifest": 6880,
+    "kept_intact": 3247,
+    "quarantined_cells_ct": 74,
+    "quarantined_cells_amt": 57,
     "unrecoverable_cells": 131,
     "rows_removed": 131,
     "attrited_removed": 8,
-    "attrited_expected": 21.05,
-    "z": -3.10
+    "prevalence_before": 0.1606596227905599,
+    "attrited_expected": 21.046410585563347,
+    "attrited_sd": 4.202987294745428,
+    "z": -3.104080424386236,
+    "z_test": "aproximacion normal a la binomial, una cola; E=n*p, sd=sqrt(n*p*(1-p)), n=131",
+    "binomial_exact_p_x_le_8": 0.000496394947620381
+  },
+  "exhibit_rows": [
+    {
+      "line": 131,
+      "permalink": "https://github.com/Sergius-DS/churn-edge-ai/blob/2779afc/data/raw/Credit_card_churn.csv?plain=1#L131",
+      "clientnum": 710806083,
+      "credit_limit": 11888.0,
+      "total_revolving_bal": 2090,
+      "avg_open_to_buy": 9798.0,
+      "inv1_holds": true,
+      "utilization_in_file": 176.0,
+      "utilization_rebuilt": 0.176,
+      "observed_factor": 1000.0,
+      "total_ct_chng_in_file": 765,
+      "nb1": 0.99255,
+      "nb2": 9999.0,
+      "partition": "mutada (6880)"
+    },
+    {
+      "line": 9962,
+      "permalink": "https://github.com/Sergius-DS/churn-edge-ai/blob/2779afc/data/raw/Credit_card_churn.csv?plain=1#L9962",
+      "clientnum": 717928308,
+      "credit_limit": 13669.0,
+      "total_revolving_bal": 1774,
+      "avg_open_to_buy": 11895.0,
+      "inv1_holds": true,
+      "utilization_in_file": 0.13,
+      "utilization_rebuilt": 0.13,
+      "observed_factor": 1.0,
+      "partition": "intacta (3247)"
+    }
+  ],
+  "symptom_unverified": {
+    "z_ref_max_reported": 2727,
+    "auc_pre_curation_reported": 0.9925,
+    "status": "observacion de una corrida previa al gate. Sin artefacto trackeado. No confirmado por busqueda.",
+    "provenance_search": {
+      "commands": [
+        "git log --all --oneline -S\"0.9925\"",
+        "git log --all --oneline -S\"2727\"",
+        "git grep -n \"0\\.9925\" 2779afc",
+        "git grep -n \"2727\" 2779afc -- \"*.md\" \"*.py\" data docs",
+        "git grep -n \"2727\" fd50a0e -- \"*.md\" \"*.py\" data docs"
+      ],
+      "result": "Todos los matches son substrings dentro de data/raw/Credit_card_churn.csv: '0.9925' pertenece a 0.99255 (columna Naive_Bayes_1, lineas 131 y 9962); '2727' es Credit_Limit (l.764), Avg_Open_To_Buy (l.9284) y substring de CLIENTNUM 712727283 (l.2372). Cero hits en documentacion, codigo o metadatos.",
+      "conclusion": "La busqueda no confirma los valores. Se conservan como observacion declarada, no como evidencia."
+    },
+    "reproduction_blocked_by": "El gate de ingestion rechaza el raw antes de llegar al generador, e IOT_REFERENCE fue recalibrada sobre el split de train del curated. Reproducir el z original requiere el config de 2779afc."
   }
 }
