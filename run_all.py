@@ -54,6 +54,16 @@ def run_script(script_path: Path) -> None:
         print(f"\n❌ El script falló: {script_path}")
         sys.exit(result.returncode)
 
+def run_iot_distribution_gate() -> None:
+    print("\n" + "=" * 70)
+    print("▶ Gate de distribución z (IoT)")
+    print("=" * 70)
+
+    subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_iot_z_distribution.py", "-s"],
+        check=True,
+        cwd=PROJECT_ROOT,
+    )
 
 def main() -> None:
     print("=" * 70)
@@ -61,8 +71,12 @@ def main() -> None:
     print("=" * 70)
 
     for script in SCRIPTS:
+        if script.name == "train_edge_iot_model.py":
+            run_iot_distribution_gate()
+
         if not script.exists():
             raise FileNotFoundError(f"No se encontró el script: {script}")
+
         run_script(script)
 
     print("\n" + "=" * 70)

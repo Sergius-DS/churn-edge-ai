@@ -78,6 +78,11 @@ mock = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
@@ -95,6 +100,9 @@ requires-dist = [
     { name = "xgboost", specifier = ">=2.0" },
 ]
 provides-extras = ["dev", "mock"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "click"
