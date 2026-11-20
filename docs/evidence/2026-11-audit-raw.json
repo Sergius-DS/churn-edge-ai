@@ -13,6 +13,7 @@
   "test_expectation_at_tag": 0.33,
   "parity_max_diff_at_run": 1.81e-11,
   "failure_excerpt_file": "2026-11-audit-raw.log",
+  "failure_excerpt_sha256": "b0f50294213f2b48c11071b1739e1b33efed821a988d11600f27f29124589819",
   "failure_excerpt_scope": "Slice contiguo y verbatim del step 'cargo test -- --nocapture', test binary tests/parity_raw_iot.rs. Se omiten los binaries anteriores (lib, contract_live, parity_raw). Sin reordenamiento ni headers agregados.",
   "dataset_sha256": "41f4e92afcf6909c5ad3130e4c5dc9f9d97f3eb7dfe5ea1ad8beeca0d9cffa59",
   "gate_violations_command": "python -c \"import pandas as pd, src.data_contract as dc; dc.validate(pd.read_csv('data/raw/Credit_card_churn.csv'), stage='raw')\"",

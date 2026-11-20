@@ -5,22 +5,27 @@ running 3 tests
 🐍 Python (expected): 0.00150453
 🦀 Rust   (got):      0.00150453
 📉 Diff:              1.81e-11
+
 🎯 Tolerancia:        1.00e-6
 🏁 Resultado:         ✅ PASS
 ═══════════════════════════════════════════════════════════
 test iot_raw_input_parity_with_python ... FAILED
 thread 'iot_raw_input_parity_with_python' (6437) panicked at tests/parity_raw_iot.rs:85:5:
 assertion `left == right` failed: El threshold IoT debe ser 0.33
-left: 0.22
-right: 0.33
+  left: 0.22
+ right: 0.33
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ✅ Firewall de privacidad funcionó: Error en preprocessing: Privacy violation: forbidden field 'pan' detected in raw input
 test iot_privacy_firewall_blocks_forbidden_fields ... ok
 ✅ Clipping IoT funcionó. Proba con out-of-bounds input: 45.5374%
 test iot_bounds_clipping_works ... ok
+
 failures:
+
 failures:
     iot_raw_input_parity_with_python
+
 test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
 error: test failed, to rerun pass `--test parity_raw_iot`
 Error: Process completed with exit code 101.
