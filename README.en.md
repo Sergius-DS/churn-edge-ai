@@ -2,7 +2,7 @@
 <p align="center">
   <b>100% in-browser churn prediction with Rust + WebAssembly</b><br><br>
   <a href="https://sergius-ds.github.io/churn-edge-ai/" target="_blank">
-    <img src="https://img.shields.io/badge/🚀_LIVE_DEMO-2EA44F?style=for-the-badge&logo=githubpages&logoColor=white" alt="Live Demo">
+    <img src="https://img.shields.io/badge/🚀_TRY_LIVE_DEMO-2EA44F?style=for-the-badge&logo=githubpages&logoColor=white" alt="Try Live Demo">
   </a>
 </p>
 
@@ -12,274 +12,309 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange" alt="Rust">
   <img src="https://img.shields.io/badge/WASM-edge-blue" alt="WASM">
   <img src="https://img.shields.io/badge/XGBoost-JSON-green" alt="XGBoost">
-  <img src="https://img.shields.io/badge/edge_model-229_KB-orange" alt="Edge Model">
+  <img src="https://img.shields.io/badge/edge_model-224_KB-orange" alt="Edge Model">
   <img src="https://img.shields.io/badge/inference-100%25_client--side-blue" alt="Inference">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
-> Churn Edge AI trains an XGBoost model in Python, exports it as an edge-optimized JSON artifact, and executes full inference via Rust and WebAssembly directly within the browser.
-> The client sends zero sensitive data to a server: predictions occur locally, with certified numerical parity against the Python baseline.
 
-## 🎯 Executive Summary
 
-This project demonstrates how to transition a classic Machine Learning model from a Python-based training pipeline into a lightweight, portable, and private inference engine that runs entirely on the client side.
+> **Churn Edge AI** trains an XGBoost model in Python, exports it as edge-optimized JSON, and runs the full inference in **Rust/WebAssembly** inside the browser.  
+> The client sends no sensitive data to a server: prediction happens locally, with certified numerical parity against Python.
+
+---
+
+## 🎯 Executive summary
+
+This project demonstrates how to take a classic Machine Learning model from a Python training pipeline into a lightweight, portable, private inference engine running entirely on the client side.
 
 | Metric | Result |
 | --- | --- |
-| Full Model — Test AUC | 0.9930 |
-| Edge Model — Test AUC | 0.9894 |
-| AUC drop (Full vs. Edge) | 0.0036 |
-| Full Features | 28 |
-| Edge Features | 12 |
-| Full Trees | 500 |
-| Edge Trees | 200 |
-| Full JSON Model Weight | ~819 KB |
-| Edge JSON Model Weight | ~229 KB |
-| Weight Reduction | 72.1% |
-| Python ↔ JSON Parity | 0.00e+00 |
-| Rust/WASM ↔ Python Parity (In-browser) | 2.02e-10 |
-| End-to-End RAW ↔ Rust Parity | 7.31e-09 |
+| Edge IoT Model — Test AUC | 0.9951 |
+| Raw features | 25 (19 banking + 6 synthetic IoT) |
+| Post-preprocessing features | 34 |
+| Trees | 200 (max_depth 3) |
+| Business threshold | 0.22 (F2 on internal pre-SMOTE split) |
+| JSON model weight | 223,760 bytes (~224 KB) |
+| Gzip weight | 47,175 bytes (~47 KB, 4.7× ratio) |
+| RAW Python ↔ Rust parity | 1.81e-11 |
+| Contract replica ≡ sklearn pipeline | max\|Δ\| = 0.000e+00 |
+| SSOT | `data/curated/churn_curated.csv` · 9,996 rows |
 | Inference | 100% client-side |
 | Data sent to server | 0 bytes |
 
-## 🧩 The Problem
+---
+
+## 🧩 Problem
 
 In traditional churn prediction systems:
-- The model resides on a server.
-- Every prediction requires transmitting client data.
+
+- The model lives on a server.
+- Every prediction requires sending client data.
 - Latency increases.
-- Inference costs scale up.
+- Inference cost increases.
 - The privacy risk surface expands.
-- Deployment relies heavily on Python, containers, APIs, or cloud services.
+- Deployment depends on Python, containers, APIs, or cloud services.
 
-For use cases where privacy, marginal cost, and speed are paramount, piping raw data to a backend is not always the optimal architecture.
+For use cases where privacy, marginal cost, and speed matter, sending raw data to a backend is not always the best architecture.
 
-## ✅ The Solution
+---
 
-Churn Edge AI implements a complete, production-grade ML pipeline:
-- Training and evaluation in Python using XGBoost.
-- Elimination of data leakage and strictly controlled preprocessing.
-- Edge model optimization:
-  - Feature reduction.
-  - Fewer trees.
-  - Shallower depth.
-  - Stronger regularization.
-  - Smaller artifact footprint.
-- Model export to JSON.
-- Generation of a strict inference contract.
-- Inference engine written in Rust.
-- Compilation to WebAssembly.
-- Mathematical parity validation between Python and Rust/WASM.
-- Backend-less browser demo.
+## ✅ Solution
+
+**Churn Edge AI** implements a complete, production-oriented ML pipeline:
+
+1. Training and evaluation in Python with XGBoost.
+2. Data leakage removal and controlled preprocessing.
+3. Forensic curation with a fail-closed ingestion contract: dtype, per-column
+   units, algebraic identity. Declared MNAR quarantine, no imputation.
+4. Model export to JSON.
+5. Inference contract generation.
+6. Inference engine written in Rust.
+7. Compilation to WebAssembly.
+8. Mathematical parity validation between Python and Rust/WASM.
+9. Backend-less browser demo.
+
+---
 
 ## 🏗️ Architecture
 
 ```text
-┌────────────────────────────── PYTHON — TRAIN ──────────────────────────────┐
-│                                                                             │
-│  Credit_card_churn.csv                                                      │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Leakage / ID removal                                                       │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Train/test split                                                           │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Imputation → Ordinal → One-Hot → SMOTE → Scaling                           │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Full XGBoost + CV + early stopping                                         │
-│        │                                                                    │
-│        ├──► model_artifacts/                                                │
-│        │       xgb_model.joblib                                             │
-│        │       scaler.joblib                                                │
-│        │       encoders / imputers / config                                 │
-│        │                                                                    │
-│        └──► edge/                                                           │
-│                xgb_model.json                                               │
-│                inference_contract.json                                      │
-│                parity_sample.json                                           │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
+┌────────────────────────── PYTHON — CURATE + TRAIN ───────────────────────────┐
+│                                                                              │
+│  data/raw/Credit_card_churn.csv        (immutable · control group)           │
+│        │                                                                     │
+│        ▼   curate_raw.py · R1–R5 · fail-closed                               │
+│  data/curated/churn_curated.csv        9,996 rows · INV-1/INV-2 = 100%       │
+│  data/curated/quarantine.csv           131 MNAR rows, not imputed            │
+│        │                                                                     │
+│        ▼   generate_synthetic_iot.py · z_ref with support gate               │
+│  + 6 synthetic IoT features            → 29 columns                          │
+│        │                                                                     │
+│        ▼   z GATE (blocking) · tests/test_iot_z_distribution.py              │
+│        │                                                                     │
+│        ▼   data_contract.validate → drop leakage/IDs → split                 │
+│        │                                                                     │
+│        ▼   Imputation → Ordinal → One-Hot → SMOTE → Scaling                  │
+│        │                              25 raw → 34 features                   │
+│        ▼   XGBoost edge (depth 3) + CV · optimize_threshold (F2)             │
+│        │                                                                     │
+│        ├──► model_artifacts/edge_iot/   (ignored: derivatives)               │
+│        │       *.joblib · metrics.json · sample_provenance.json              │
+│        │                                                                     │
+│        └──► export_edge_iot.py · triple checkpoint                           │
+│                xgb_model_edge_iot.json                                       │
+│                inference_contract_edge_iot.json   (v2, byte-deterministic)   │
+│                metrics_edge_iot.json              (justifies the threshold)  │
+│                parity_sample_edge_iot.json · raw_parity_case_iot.json        │
+│                export_manifest_edge_iot.json      (7 hashes + provenance)    │
+│                                                                              │
+└─────────────────────────────────────┬────────────────────────────────────────┘
                                       ▼
-┌──────────────────────────── EDGE OPTIMIZATION ─────────────────────────────┐
-│                                                                             │
-│  Top feature selection                                                      │
-│  Fewer trees / shallower depth                                              │
-│  Stronger regularization                                                    │
-│  Edge export:                                                               │
-│      xgb_model_edge.json                                                    │
-│      inference_contract_edge.json                                           │
-│      parity_sample_edge.json                                                │
-│      raw_parity_case.json                                                   │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
+┌──────────────────────────── RUST / WASM — INFER ─────────────────────────────┐
+│  contract.rs        deserializes the v2 contract                             │
+│  preprocessing.rs   firewall → IoT bounds → impute → ordinal → onehot        │
+│                     → scale                                                  │
+│  model.rs           XGBoost tree parser (parallel arrays)                    │
+│  inference.rs       f32 traversal + sigmoid                                  │
+│  lib.rs             init_engine (OnceLock) · predict_churn                   │
+└─────────────────────────────────────┬────────────────────────────────────────┘
                                       ▼
-┌──────────────────────────── RUST / WASM — INFER ───────────────────────────┐
-│                                                                             │
-│  churn-wasm/                                                                │
-│      contract.rs          inference contract parsing                        │
-│      preprocessing.rs     raw → impute → ordinal → one-hot → scale          │
-│      model.rs             XGBoost JSON tree parser                          │
-│      inference.rs         tree traversal with f32 arithmetic                │
-│      lib.rs               wasm_bindgen APIs                                 │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
-                                      ▼
-┌────────────────────────────────── BROWSER ──────────────────────────────────┐
-│                                                                             │
-│  index.html + demo.js                                                       │
-│      loads churn_wasm.js                                                    │
-│      loads xgb_model_edge.json                                              │
-│      loads inference_contract_edge.json                                     │
-│      executes local prediction                                              │
-│      validates parity with Python                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────── BROWSER ───────────────────────────────────┐
+│  index.html + demo.js                                                        │
+│      loads churn_wasm.js                                                     │
+│      loads xgb_model_edge_iot.json                                           │
+│      loads inference_contract_edge_iot.json                                  │
+│      local prediction · 0 bytes to the server                                │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔒 Privacy by Design
+## 🔒 Privacy by design
 
 Inference runs entirely in the browser.
 
 | Property | Status |
-| --- | --- |
+|---|---|
 | Client data sent to server | 0 bytes |
 | Backend required to predict | No |
 | Works offline after loading assets | Yes |
 | Server-side inference cost per request | $0.00 |
 | Privacy | Local-first / Zero-Trust |
-| Personal data processing surface | Minimized |
+| Personal data processing surface | Reduced |
 
-*Note: This approach favors privacy-by-design architectures and facilitates data minimization strategies. It does not constitute legal advice nor guarantee GDPR compliance on its own.*
+> **Note:** this approach favors privacy-by-design architectures and can facilitate data minimization strategies. It does not constitute legal advice nor guarantee GDPR compliance on its own.
 
 ---
 
-## 📊 Model Results
+## 📊 Model results
 
-### Full vs Edge Comparison
+### Full vs Edge comparison (retired lineage — ADR-0006, tag `baseline-fase3`)
+
+> ⚠️ **Historical.** The Full 28f baseline and the Edge Lite 12f were retired
+> because they descended from the mutated file. The current model is
+> **Edge IoT** (34 features, threshold 0.22, AUC 0.9951). See the
+> "Metrics — Edge IoT Model" section.
 
 | Metric | Full | Edge | Δ |
-| --- | --- | --- | --- |
+| --- | ---: | ---: | ---: |
 | Features | 28 | 12 | -16 |
 | Trees | 500 | 200 | -300 |
-| max_depth | 4 | 3 | -1 |
+| `max_depth` | 4 | 3 | -1 |
 | CV AUC | 0.9986 | 0.9975 | -0.0011 |
 | Test AUC | 0.9930 | 0.9894 | -0.0036 |
 | Precision (churn class) | 0.91 | 0.88 | -0.03 |
 | Recall (churn class) | 0.91 | 0.90 | -0.01 |
 | F1 (churn class) | 0.91 | 0.89 | -0.02 |
 | Threshold | 0.38 | 0.38 | same |
-| JSON Weight | 818,904 bytes | 228,629 bytes | -72.1% |
-
-### Interpretation
-
-The edge model sacrifices very little predictive power in exchange for:
-- Reducing model weight by 72.1%.
-- Decreasing feature count from 28 to 12.
-- Lowering inference complexity.
-- Making browser execution viable.
-- Maintaining a stable business threshold.
-
-The AUC drop was:
-`Δ AUC = 0.003620`
-
-This value is well within the acceptable range for an edge deployment.
+| JSON weight | 818,904 bytes | 228,629 bytes | -72.1% |
 
 
 ---
 
-## 🧠 Dataset and Preparation
+## 🧠 Dataset, forensic curation, and SSOT
 
-The pipeline starts with a bank churn dataset containing:
-- Initial rows:     10,127
-- Initial columns:  23
-- Target:
-  - 0 → 8,500
-  - 1 → 1,627
+The source file was not the canonical dataset. Three ratio-type columns
+arrived with a decimal point read as a thousands separator, and 131 cells
+contained dates where a ratio should have been.
 
-### Leakage Removal
+| Artifact | Rows | sha256 (prefix) | Role |
+| --- | --- | --- | --- |
+| `data/raw/Credit_card_churn.csv` | 10,127 | `41f4e92afcf6…` | Immutable origin. Control group |
+| `data/curated/churn_curated.csv` | 9,996 | `6bced2a3bf04…` | Operational SSOT |
+| `data/curated/quarantine.csv` | 131 | `a49c8ecee4cd…` | Irrecoverable cells, not imputed |
 
-Columns incompatible with a real-world production environment were dropped:
-- `CLIENTNUM`
-- `Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_1`
-- `Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_2`
+**The ingestion contract rejects the origin with 4 violations:** two for
+dtype, one for units, the fourth for algebraic identity (verbatim gate
+output — these four literals are asserted in `test_data_contract.py`):
 
-Additionally, the following were cast to numeric:
-- `Total_Amt_Chng_Q4_Q1`
-- `Total_Ct_Chng_Q4_Q1`
+```text
+Total_Amt_Chng_Q4_Q1: no numérico (Unable to parse string "2024-03-01 00:00:00" at position 158)
+Total_Ct_Chng_Q4_Q1: no numérico (Unable to parse string "2024-05-02 00:00:00" at position 4)
+Avg_Utilization_Ratio: 6880 fuera de [0.0,1.0] (min=0 max=999)
+INV-2 violada: 32.0628%
+```
+
+The fourth does not depend on having guessed the units:
+`utilization = revolving balance / limit`. It would have worked with a factor
+of seven instead of a thousand.
+
+The 131 irrecoverable cells were **not imputed**: the missingness turned out
+to be correlated with the value (8 attrited customers removed vs 21 expected
+under random missingness; z = −3.10, normal approximation to the binomial,
+exact P(X ≤ 8) = 0.0005). Imputing the mean would have injected bias aligned
+with the target.
+
+Rules R1–R5, domain preconditions, and the full chain of custody in
+`data/curated/curation_manifest.json`. Audit evidence in `docs/evidence/`.
+
+
+### Leakage removal
+
+Columns incompatible with a real production environment were dropped:
+
+```text
+CLIENTNUM
+Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_1
+Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_2
+```
+
+The two trend columns arrived as `object` because they contained dates. The
+original pipeline coerced them with `errors="coerce"` and imputed them with
+the mean: three silent laundering steps that turned a contract violation into
+a plausible value. That coercion was **removed**. The contract guarantees
+dtype; if the data does not parse, it is rejected.
 
 ---
 
-## 🚫 Anti-Data Leakage Pipeline
+## 🚫 Anti-data leakage pipeline
 
-The preprocessing order is strictly designed to prevent data leakage between training and validation.
+The preprocessing order is designed to prevent information leakage between training and validation.
 
 ```text
 Train/test split
-     ↓
-Numeric imputation (fitted on train only)
-     ↓
-Categorical imputation (fitted on train only)
-     ↓
-Ordinal transformation (fitted on train only)
-     ↓
-One-Hot encoding (fitted on train only)
-     ↓
-SMOTE (applied to train only)
-     ↓
-Scaling (fitted on train only)
-     ↓
+    ↓
+Numeric imputation fitted on train only
+    ↓
+Categorical imputation fitted on train only
+    ↓
+Ordinal transformation fitted on train only
+    ↓
+One-Hot encoding fitted on train only
+    ↓
+SMOTE applied to train only
+    ↓
+Scaling fitted on train only
+    ↓
 Training
-     ↓
-Final evaluation on untouched test set
+    ↓
+Final evaluation on the untouched test set
 ```
+
+### Principles
+
+- The test set is never used to fit transformations.
+- SMOTE is applied only on train.
+- Imputers, encoders, and scaler are learned from train only.
+- The threshold is defined on validation, not on test.
+- Final metrics are computed on an uncontaminated test set.
+
+⚠️ **Declared caveat:** SMOTE is applied to the full train set before CV.
+Synthetic points are spread across folds, so validation AUC is optimistic by
+construction. The publishable number is `test_auc`. Intra-fold SMOTE lives in
+a separate branch: it changes every number, including `base_score`.
 
 ---
 
-## 🪶 Edge Optimization
+## 🪶 Edge IoT Model
 
-The edge model was specifically trained for lightweight WASM inference.
+The Edge IoT model was trained for lightweight WASM inference, combining
+traditional banking features with synthetic IoT telemetry.
 
 ### Strategy
 
-- Selection of the most important features from the full model.
-- Shallower depth.
-- Fewer trees.
-- Stronger regularization.
-- Early stopping with cross-validation.
-- Export to JSON.
-- Parity validation.
+- **No feature selection:** uses the 19 banking features from the curated set + 6 IoT features.
+- Lower depth (`max_depth: 3` vs `4` in the historical Full).
+- Fewer trees (`200` vs `500`).
+- Stronger regularization (`gamma: 0.1`, `reg_lambda: 1.5`).
+- Early stopping with cross-validation (though structurally inert post-SMOTE).
+- Export to JSON with inference contract v2.
+- Parity validation across 5 layers (Python ↔ sklearn ↔ Rust).
 
-### Edge Features
+### Features (25 raw → 34 post-preprocessing)
 
-The 12 selected features were:
+**19 banking features** (from the curated set):
+```text
+Customer_Age, Gender, Dependent_count, Education_Level, Marital_Status,
+Income_Category, Card_Category, Months_on_book, Total_Relationship_Count,
+Months_Inactive_12_mon, Contacts_Count_12_mon, Credit_Limit,
+Total_Revolving_Bal, Avg_Open_To_Buy, Total_Amt_Chng_Q4_Q1,
+Total_Trans_Amt, Total_Trans_Ct, Total_Ct_Chng_Q4_Q1, Avg_Utilization_Ratio
+```
 
-- `Total_Trans_Ct`
-- `Total_Revolving_Bal`
-- `Total_Ct_Chng_Q4_Q1`
-- `Months_Inactive_12_mon`
-- `Contacts_Count_12_mon`
-- `Total_Trans_Amt`
-- `Total_Relationship_Count`
-- `Avg_Utilization_Ratio`
-- `Total_Amt_Chng_Q4_Q1`
-- `Dependent_count`
-- `Gender_F`
-- `Marital_Status_Single`
+**6 synthetic IoT features** (generated with a support gate):
+```text
+app_open_count_30d, contactless_usage_count_30d,
+payment_flow_abandon_count_30d, nfc_failed_attempts_30d,
+app_crash_count_30d, pos_latency_p95_ms
+```
 
-### Edge Parameters
+**Post-preprocessing (34 features):**
+- **20 direct numeric:** 14 banking + 6 IoT
+- **4 ordinal-derived:** `Income_Category_ordinal`, `Education_Level_ordinal`
+  + their `is_unknown` flags (numeric columns, not one-hot)
+- **10 one-hot:** Gender × 2, Marital_Status × 4, Card_Category × 4
 
-Configuration used for the edge model:
+The 5 banking categorical features split as: 2 → ordinal + flag, 3 → one-hot.
+20 + 4 + 10 = 34. Verified against the export (`onehot=10`) and the contract.
+
+### Edge IoT parameters
+
+Config used for the Edge IoT model (`src/config.py::XGB_EDGE_PARAMS`):
 
 ```python
-edge_params = {
+XGB_EDGE_PARAMS = {
     "objective": "binary:logistic",
     "eval_metric": "auc",
     "max_depth": 3,
@@ -292,498 +327,445 @@ edge_params = {
     "seed": 44,
     "verbosity": 1,
 }
+
+EDGE_CV_NUM_BOOST_ROUND = 200
+EDGE_EARLY_STOPPING_ROUNDS = 10
 ```
 
----
+> ⚠️ **Caveat:** `best_round = 200` coincides with `EDGE_CV_NUM_BOOST_ROUND`.
+> It is the ceiling, not a measured optimum. See the "Business threshold"
+> section.
 
-## 📈 Classification Metrics
-
-### Full Model
-
-| Metric | Value |
-| --- | --- |
-| Test AUC | 0.9930 |
-| F1 Score (churn class) | 0.91 |
-| Precision (churn class) | 0.91 |
-| Recall (churn class) | 0.91 |
-| Threshold | 0.38 |
-
-### Edge Model
-
-| Metric | Value |
-| --- | --- |
-| Test AUC | 0.9894 |
-| F1 Score (churn class) | 0.89 |
-| Precision (churn class) | 0.88 |
-| Recall (churn class) | 0.90 |
-| Threshold | 0.38 |
-
-### Confusion Matrix Comparison
-
-**Full Model:**
-
-| Actual \ Predicted | No Churn | Churn |
-| --- | --- | --- |
-| **No Churn** | 1,662 | 39 |
-| **Churn** | 31 | 294 |
-
-**Edge Model:**
-
-| Actual \ Predicted | No Churn | Churn |
-| --- | --- | --- |
-| **No Churn** | 1,662 | 39 |
-| **Churn** | 31 | 294 |
-
-### Analysis
-
-The edge model maintains strong discriminative power with an AUC of 0.9894, only 0.0036 points below the full model. The slight reduction in precision (0.88 vs 0.91) is an acceptable trade-off given the 72.1% reduction in model size and the elimination of server-side inference costs.
-
-The recall remains stable at 0.90, ensuring that the model continues to identify the vast majority of churn cases, which is the primary business objective.
 
 ---
 
-## 🎚️ Business Threshold
+## 📈 Metrics — Edge IoT Model
 
-The threshold used is:
+Test AUC: **0.995074** · Threshold: **0.22** · n_test: 2,000
 
-`threshold = 0.38`
+```text
+Confusion matrix:
+[[1568  108]
+ [   5  319]]
 
-`0.5` is not used because the business cost is asymmetrical.
+TP = 319 · FN = 5 · FP = 108 · TN = 1568
+```
 
-In churn prediction:
-
-- A false negative means failing to detect a customer who is about to leave.
-- A false positive means flagging a customer who ultimately stays.
-
-Therefore, a recall-oriented metric was optimized using an F2-score criterion, which heavily penalizes missing a true churn event.
-
----
-
-## 🧪 Certified Mathematical Parity
-
-One of the project's most critical requirements is that Rust/WASM produces the exact same result as Python/XGBoost.
-
-Parity was validated across multiple layers.
-
-| Layer | What it compares | Tool | Max diff |
+| Class | Precision | Recall | F1 |
 | --- | --- | --- | --- |
-| 1 | Python ↔ Exported JSON | `scripts/validate_parity.py` | 0.00e+00 |
-| 2 | JSON ↔ Rust (using pre-scaled features) | In-browser `verify_parity` | 2.02e-10 |
-| 3 | RAW Input → Probability (Python ↔ Rust) | golden file + `cargo test` | 7.31e-09 |
-| 4 | WASM Demo vs Python | Manual cross-check | 0.0042% (visual rounding) |
+| Existing (0) | 1.00 | 0.94 | 0.97 |
+| Attrited (1) | 0.75 | 0.98 | 0.85 |
+
+Accuracy: 0.94 · Split: 7,996 train / 2,000 test · SMOTE: 7,996 → 13,402
+
+Source of truth: `edge/metrics_edge_iot.json`. This table is a readable mirror; the artifact is the official record.
 
 ---
 
-### Golden RAW Case
+## 🎚️ Business threshold
 
-To validate the entire Rust preprocessing pipeline, a golden file was generated using Python:
+`threshold = 0.22`
 
-```text
-Python edge:   59.6658%
-WASM Demo:     59.67%
-Visual diff:   0.0042%
-```
+Optimized via F2 on an internal split of the train set **before SMOTE**, with
+its own scaler fitted on that split. `0.5` was not used because the cost is
+asymmetric: a false negative is a customer who leaves undetected.
 
-Rust Test:
+The threshold lives in `model_artifacts/edge_iot/model_config.joblib` and is
+published in the contract. **No test or frontend hardcodes it**: they read it
+from the artifact.
 
-```text
-Python: 0.59665781
-Rust:   0.59665781
-diff:   7.31e-09
-```
+Declared trade-off: FN 5 vs FP 108. This is the F2 objective operating as
+designed, not a defect.
 
-This certifies that the entire chain behaves identically:
+⚠️ `best_round = 200` coincides with `EDGE_CV_NUM_BOOST_ROUND`. It is the
+ceiling, not a measured optimum: CV was still rising at iteration 199, and
+early-stopping is structurally inert on a monotonic post-SMOTE curve. Recorded
+in `metrics_edge_iot.json`.
 
-```text
-Raw Input
-     ↓
-Numeric Imputation
-     ↓
-Categorical Imputation
-     ↓
-Ordinal Income/Education
-     ↓
-is_unknown Flags
-     ↓
-One-Hot Gender/Marital/Card
-     ↓
-StandardScaler
-     ↓
-XGBoost Trees in Rust
-     ↓
-Sigmoid
-     ↓
-Churn Probability
-```
+---
+
+## 🧪 Certified parity
+
+| Layer | What it compares | Where | Max diff |
+| --- | --- | --- | --- |
+| 1 | Contract replica ≡ sklearn pipeline | `export_edge_iot.py` · Checkpoint 3 | **0.000e+00** |
+| 2 | RAW → preprocessing → trees → proba, Python ↔ Rust | `tests/parity_raw_iot.rs` | **1.81e-11** |
+| 3 | The deployed contract deserializes in Rust | `tests/contract_live.rs` | pass/fail |
+| 4 | Artifact integrity vs manifests | `check_artifact_hashes.py` | 12 checks |
+| 5 | Contract controls present **and armed** | `check_contract_posture.py` | 4 controls |
+
+Layer 1 is the one that closes the intermediate link: without it, the replica
+could be self-consistent with Rust yet different from what the model saw
+during training.
+
+**Golden case:** real row from the curated set + IoT (`CLIENTNUM 720014358`),
+with a double checkpoint — `expected_scaled` (34 f32) and `expected_proba` —
+and tolerance declared in the file itself. Satisfies INV-1 and INV-2.
+
+Pending: Rust test over the 100 scaled samples in
+`parity_sample_edge_iot.json` (gap 3).
+
 ---
 
 ## 🛡️ Methodological Integrity and Transparency (Anti-Gaming)
 
-In Machine Learning, it is common to accidentally inflate metrics through data leakage, p-hacking, or manipulating the execution environment. This project enforces strict rules to ensure results are honest, reproducible, and production-ready:
+In Machine Learning it is common to accidentally inflate metrics through *data leakage*, *p-hacking*, or by manipulating the execution environment. This project enforces strict rules to ensure results are honest, reproducible, and production-ready:
 
-| Transparency Practice | Implementation in this project |
-| --- | --- |
-| **Zero Data Leakage** | The `train/test split` occurs *before* any imputation, scaling, or SMOTE. The test set remains completely untouched until final evaluation. |
-| **Honest Trade-offs** | Edge optimization does not hide its costs. The AUC drop (`-0.0036`) resulting from reduced model complexity is openly reported, rather than manipulating metrics. |
-| **Frozen Threshold** | The business threshold (`0.38`) was defined via validation (F2-score) and frozen. It was not iteratively tuned against the test set to artificially inflate `Recall`. |
-| **No magic RUSTFLAGS** | The WASM engine was compiled using standard profiles (`--release`). No `target-cpu=native` or hidden flags were used to force parity or speed. |
-| **Exact Parity (Not approximate)** | We do not settle for "small differences" due to rounding. XGBoost's internal `f32` arithmetic was deliberately replicated in Rust to achieve a `max diff` of `7.31e-09`. |
+| Practice | Implementation |
+|---|---|
+| **Zero Data Leakage** | The split happens before imputation, scaling, and SMOTE. The test set fits no transformations. **Caveat:** SMOTE precedes CV, so validation AUC is optimistic; the publishable number is `test_auc` |
+| **Honest Trade-offs** | FN 5 vs FP 108 at threshold 0.22 is declared, as is `best_round` sitting at the CV ceiling. The cost of the F2 objective is not hidden |
+| **Threshold with a receipt** | The threshold (0.22) was defined via F2 on an internal pre-SMOTE split and lives in `model_config.joblib`. Its justification is tracked in `metrics_edge_iot.json`. No test hardcodes it |
+| **No magic `RUSTFLAGS`** | Standard profiles (`--release`). No `target-cpu=native` or hidden flags |
+| **Exact Parity** | XGBoost's `f32` arithmetic deliberately replicated. RAW→proba: `1.81e-11`. Contract replica ≡ sklearn pipeline: `0.000e+00` |
+| **Declared curation** | The curated set **is not canonical BankChurners**: 131 fewer rows, prevalence 0.16066 → 0.16196. The mutated raw is kept immutable as a control group |
 
-*📌 Note on Performance Benchmarks: Precision, weight, and mathematical parity optimizations are certified. Current latency metrics (`< 1ms`) are empirical, measured directly in the browser. The project has not yet implemented a formal throughput benchmark suite with `criterion.rs` in native Rust to avoid browser environment measurement biases (JIT, GC, fetch). Adding `criterion` for isolated benchmarks is the next step in the MLOps roadmap.*
+> 📌 **Note on Performance Benchmarks:** Precision, weight, and mathematical parity optimizations are certified. Current latency metrics (`< 1ms`) are empirical, measured directly in the browser. The project **has not yet implemented a formal throughput benchmark suite with `criterion.rs`** in native Rust, to avoid browser-environment measurement biases (JIT, GC, fetch). Adding `criterion` for isolated benchmarks is the next step in the MLOps roadmap.
 
 ---
 
 ## 🦀 Rust / WASM Engine (Python Inference Mirror)
 
-To guarantee certified numerical parity (`max diff ~ 7.31e-09`), the Rust engine does not rely on external Machine Learning libraries. Instead, it implements an exact, line-by-line and function-by-function replica of the preprocessing pipeline and inference logic originally developed in Python.
+The engine **uses no external Machine Learning libraries**: it implements a
+replica of Python's preprocessing pipeline and inference logic. RAW→proba
+parity certified at **1.81e-11** (`tests/parity_raw_iot.rs`).
 
 The Rust engine is responsible for:
 
-- **Loading the XGBoost model from JSON:** Parsing the tree structure, nodes, splits, and base weights exactly as exported by XGBoost.
-- **Loading the inference contract:** Reading and validating configuration metadata (`inference_contract_edge.json`).
-- **Replicating RAW preprocessing:**
-  - Applying numeric (`strategy='median'`) and categorical (`strategy='most_frequent'`) imputation, mirroring the `SimpleImputers` fitted on the Python train set.
-  - Executing ordinal encoding for variables like income and education.
-  - Generating control flags (`is_unknown`) and One-Hot categories with identical ordering and handling of unseen categories.
-  - Applying the `StandardScaler` using the fixed mean and standard deviation learned in Python.
-- **Executing inference with `f32` arithmetic:** Traversing decision trees and accumulating margins, replicating XGBoost's internal engine behavior (using `f64` introduced divergences near split thresholds).
-- **Calculating final probability:** Converting the accumulated margin (added to the model's `base_score`) into a probability via the sigmoid function and comparing it against the business threshold (`0.38`).
+1. **Loading the XGBoost model from JSON:** tree parsing with parallel arrays
+   (`left_children`, `right_children`, `split_indices`, `split_conditions`,
+   `base_weights`, `sum_hessian`). There are no node objects and no `nodeid` field.
+2. **Loading the inference contract:** `inference_contract_edge_iot.json` (v2).
+3. **Replicating RAW preprocessing:**
+   - Numeric imputation `strategy="mean"` and categorical `most_frequent`,
+     replicating the `SimpleImputer`s fitted on the Python train set.
+   - Ordinal encoding of income/education with `is_unknown` flags.
+   - One-Hot in the exact order of `get_feature_names_out()`.
+   - `StandardScaler` with the mean and scale from train.
+4. **Running inference with `f32` arithmetic:** deliberate replica of XGBoost's
+   internal arithmetic (using `f64` introduced divergences on splits close to
+   the threshold).
+5. **Computing the final probability:** sigmoid over the accumulated margin
+   plus the model's `base_score`, compared against the threshold **declared by
+   the contract**.
 
----
+### 🏗️ Engineering decisions — declared scope
 
-## 🏗️ Key Engineering Decisions
+| Decision | Actual scope |
+|---|---|
+| **Zero-copy keys** | Contract keys are borrowed (`Cow`/`&str`). **`predict_churn` parses a JSON DOM per call**: p50 is dominated by that allocation, not by the traversal |
+| **`OnceLock` cache** | Model and contract are parsed once in `init_engine`. Inference does not re-parse them |
+| **Allocation-free traversal** | True for the tree walk. Not for the JSON boundary |
+| **Privacy firewall** | Rejects forbidden fields (`pan`, `cvv`, GPS…) before imputing |
+| **Consent gate** | `lib.rs:66` refuses to infer without consent when the contract requires it |
+| **Parsing with `serde`** | Nodes are modeled as `enum` (`Leaf`/`Split`) to eliminate invalid states at compile time |
 
-| Decision | Justification |
-| --- | --- |
-| **Parsing with `serde` + strict types** | Tree nodes are modeled as `enum` (`Leaf` / `Split`) to eliminate invalid states at compile time. |
-| **Zero-allocation in the hot-path** | Inference reuses pre-allocated buffers; no allocations occur during tree traversal. |
-| **Fail-safe contract** | If the contract has an incompatible version, the module fails at load time, not during inference. |
-| **JS ↔ Rust Interop** | Features are passed as `&[f32]` from a JavaScript `Float32Array`, avoiding unnecessary memory copies. |
+> ⚠️ **Declared gap:** the crate validates neither the contract version nor
+> `model_sha256` (`sha2` absent from `Cargo.toml`). Four contract fields are
+> optional and default to off. See "Current status".
 
----
-
-## 💡 Case Study: why `f32` and not `f64`
+### 💡 Case study: why `f32` and not `f64`
 
 XGBoost evaluates splits and accumulates margins using 32-bit precision internally.
-Initially, the Rust engine calculated everything in `f64` (double precision), which is Rust's default for math. However, this broke parity in edge cases where a value fell extremely close to a split threshold.
 
-**The problem:** Rounding differences between `f32` and `f64` caused Rust to take different branches in the decision tree, accumulating errors that resulted in divergences greater than `1e-06`.
+Initially, the Rust engine computed everything in `f64` (double precision), Rust's default for math. However, this broke parity in edge cases where a value fell extremely close to a split threshold.
 
-**The solution:** Deliberately replicate XGBoost's internal arithmetic:
-- `f64` features → `f32` features
-- split comparisons in `f32`
-- margin accumulation in `f32`
-- final margin converted to `f64` for sigmoid
+**The problem:** rounding differences between `f32` and `f64` caused Rust to take different branches in the decision tree, accumulating errors that resulted in divergences greater than `1e-06`.
 
-This detail was key to achieving:
-`max diff ≈ 7.31e-09`
+**The solution:** deliberately replicate XGBoost's internal arithmetic:
 
-**Lesson learned:** In ML inference systems, numerical precision is not just about mathematical exactness, but about replicating the original framework's behavior. What is "more precise" (`f64`) can be incorrect if the model was trained with `f32`.
+```text
+f64 features → f32 features
+split comparisons in f32
+margin accumulation in f32
+final margin converted to f64 for sigmoid
+```
 
----
+This detail was key to achieving parity. Historical measurement from the Lite
+lineage: `max diff ≈ 7.31e-09`. The current IoT lineage reaches **1.81e-11**.
 
-## 📁 Main Modules
+Lesson learned: in ML inference systems, numerical precision is not just about mathematical exactness, but about replicating the original framework's behavior. What is "more precise" (f64) can be wrong if the model was trained with f32.
+
+### 📁 Main modules
 
 ```text
 edge/churn-wasm/src/
     lib.rs             Entry point exposed to JavaScript (wasm-bindgen)
-    contract.rs        Deserialization and validation of the inference contract
+    contract.rs        Inference contract deserialization and validation
     preprocessing.rs   Exact replica of the raw → scaled features pipeline
     model.rs           Typed parser for the XGBoost JSON tree
     inference.rs       Tree traversal and margin calculation engine (f32)
 ```
+
 ---
 
-## 🌐 Browser Demo
+## 🌐 Browser demo
 
 The demo allows you to:
+
 - Load the WASM model locally.
 - Load the edge JSON model.
 - Load the edge contract.
-- Input client features.
-- Calculate churn probability without a backend.
-- Automatically verify parity.
+- Enter client features.
+- Compute churn probability without a backend.
+- Verify parity automatically.
 
-### Prediction Example
+### Prediction example
 
 ```text
-Probability: 59.67%
-Threshold:    0.38
-Decision:     HIGH CHURN RISK
+Probability: 0.15%
+Threshold:   0.22
+Decision:    NO CHURN RISK
 ```
+
 ---
 
 ## 📦 Development Environment (DevContainer)
 
-This project is configured with Dev Containers (Microsoft/GitHub standard) to guarantee 100% reproducibility and avoid local dependency conflicts. You do not need to manually install Python, Rust, `uv`, or `wasm-pack` on your host OS.
+This project is configured with **Dev Containers** (Microsoft/GitHub standard) to guarantee 100% reproducibility and avoid local dependency conflicts. You do not need to manually install Python, Rust, `uv`, or `wasm-pack` on your host OS.
 
 ### 🌩️ Option A: GitHub Codespaces (Zero installation)
 1. Go to the repository on GitHub.
-2. Click the green `<> Code` button.
+2. Click the green **`<> Code`** button.
 3. Select the **Codespaces** tab and click **"Create codespace on main"**.
-4. In under 2 minutes, you will have a full VS Code environment in your browser with Python 3.11, Rust, `uv`, and `wasm-pack` pre-configured and ready to use.
+4. In under 2 minutes, you will have a full VS Code environment in your browser with Python 3.10, Rust, `uv`, and `wasm-pack` preconfigured and ready to use.
 
 ### 💻 Option B: Local VS Code
-1. Clone the repository and open it in Visual Studio Code.
-2. Ensure you have the official **Dev Containers** extension by Microsoft installed.
+1. Clone the repository and open it in **Visual Studio Code**.
+2. Make sure you have the official **Dev Containers** extension by Microsoft installed.
 3. VS Code will detect the `.devcontainer/devcontainer.json` file and show a notification in the bottom right corner.
 4. Click **"Reopen in Container"**.
-5. The isolated environment will build automatically. Once finished, the integrated terminal will be inside the container with all tools ready.
+5. The isolated environment will build automatically. Once finished, the integrated terminal will already be inside the container with all tools ready.
+
 ---
 
 ## 🚀 Quickstart
 
-### Requirements
-- Python 3.11+
-- `uv` or `pip`
-- Rust stable
-- `wasm-pack`
-- Modern browser
+Requirements: Python **3.10.11** (pinned by `uv.lock`), `uv`, Rust stable, `wasm-pack`.
 
-### 1. Install wasm-pack
 ```bash
-cargo install wasm-pack
-```
+# 1. Fail-closed environment
+uv sync --frozen
 
-### 2. Run Python pipeline
-On Windows:
-```bash
-uv run py run_all.py
-```
-On Linux/macOS (if `make` is configured):
-```bash
-make all
-```
-*The pipeline executes: `train_model.py` ➔ `export_edge.py` ➔ `validate_parity.py` ➔ `train_edge_model.py` ➔ `export_edge_lite.py`*
+# 2. Production chain (3 scripts + 1 blocking gate)
+uv run python run_all.py
+#    generate_synthetic_iot → z gate → train_edge_iot → export_edge_iot
 
-### 3. Validate RAW parity
-```bash
-uv run py scripts/validate_parity_raw.py
-```
-*This generates: `edge/raw_parity_case.json`*
+# 3. Verification gates
+uv run python scripts/check_artifact_hashes.py     # 12 checks
+uv run python scripts/check_contract_posture.py    # 4 armed controls
+uv run pytest tests/ -v                            # contract + z distribution
 
-### 4. Run Rust tests
-```bash
-cd edge/churn-wasm
-cargo test -- --nocapture
-```
-*RAW parity test:*
-```bash
-cargo test --test parity_raw -- --nocapture
-```
+# 4. Rust tests
+cd edge/churn-wasm && cargo test -- --nocapture
 
-### 5. Compile WASM
-```bash
-cd edge/churn-wasm
+# 5. Build WASM
 wasm-pack build --target web --release
+
+# 6. Local demo
+cd edge && python -m http.server 8000
 ```
 
-### 6. Start local demo
-```bash
-cd edge
-python -m http.server 8000
-```
-Open: `http://localhost:8000`
+**Outside the default chain, on purpose:** `curate_raw.py` and
+`calibrate_iot_reference.py` rewrite tracked evidence. A pipeline that
+regenerates its own control group has no control group. They are invoked
+explicitly and their result is verified by hash.
+
 ---
 
-## 📦 Project Structure
+## 📦 Project structure
 
 ```text
 churn-edge-ai/
-│
+├── .github/workflows/
+│   ├── ci.yml                          # python-gates + rust-wasm
+│   └── deploy-pages.yml                # uploads ./edge in full
 ├── .gitignore
 ├── pyproject.toml
-├── README.md                                  # Contains the "🗺️ Project Evolution" section
-├── run_all.py                                 # Unified MLOps Orchestrator
-├── Makefile
+├── uv.lock                             # fail-closed pin
+├── run_all.py                          # 3 scripts + z gate
+├── README.md · README.en.md
 │
 ├── data/
-│   ├── raw/
-│   │   └── Credit_card_churn.csv              # Immutable Source (Phase 1)
-│   ├── processed/                             # 🟢 (Phase 2) ML-ready Data
-│   │   └── credit_card_churn_iot_synthetic.csv
-│   └── synthetic/                             # 🟢 (Phase 2) Traceability and Audit
-│       └── iot_features_metadata.json         # 🛡️ Proof of Zero Target Leakage
+│   ├── raw/Credit_card_churn.csv       # immutable origin, control group
+│   ├── curated/                        # SSOT + manifests + quarantine
+│   └── synthetic/iot_features_metadata.json
+│   # data/processed/ ignored: regenerable derivative
 │
-├── model_artifacts/
-│   ├── xgb_model.joblib                       # (Phase 1) Full Baseline
-│   ├── xgb_model_edge.joblib                  # (Phase 1) Edge Lite
-│   ├── [scalers, imputers, configs...]        # (Phase 1)
-│   └── edge_iot/                              # 🟢 (Phase 2) Edge IoT Artifacts
-│       ├── xgb_model.joblib
-│       ├── scaler.joblib
-│       ├── model_config.joblib                # Includes optimal threshold (0.33)
-│       ├── num_imputer.joblib                 # 🟢 (Phase 3) Preprocessing artifacts
-│       ├── cat_imputer.joblib
-│       ├── ordinal_imputer.joblib
-│       ├── onehot_encoder.joblib
-│       └── X_test_scaled_sample.csv
+├── docs/
+│   ├── adr/0004 · 0005 · 0006
+│   └── evidence/2026-11-audit-raw.{json,log}
+│
+├── model_artifacts/                    # fully ignored
+│   └── edge_iot/                       # binaries + metrics + provenance
 │
 ├── edge/
-│   ├── xgb_model.json                         # (Phase 1)
-│   ├── inference_contract.json                # (Phase 1)
-│   ├── xgb_model_edge.json                    # (Phase 1)
-│   ├── inference_contract_edge.json           # (Phase 1)
-│   ├── xgb_model_edge_iot.json                # 🟢 (Phase 2) WASM Core (34 features)
-│   ├── inference_contract_edge_iot.json       # 🟢 (Phase 3) Enriched Contract v2
-│   ├── sample_scaled_edge_iot.npy             # 🟢 (Phase 2) Parity Test
-│   ├── expected_proba_edge_iot.npy            # 🟢 (Phase 2) Expected Responses
-│   ├── parity_sample_edge_iot.json            # 🟢 (Phase 3) Post-scaling Parity (JSON)
-│   ├── raw_parity_case_iot.json               # 🟢 (Phase 3) RAW→proba Golden Case
-│   ├── index.html                             # 🟢 (Phase 3) Dual Demo (Operator + Client)
-│   ├── demo.js                                # 🟢 (Phase 3) WASM Logic + Mock Bank + Fallback
-│   └── churn-wasm/                            # 🟢 (Phase 3) Full Rust Engine
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs                         # Entry point + init_engine (OnceLock cache)
-│           ├── contract.rs                    # Contract Parser (IoT + backward-compat)
-│           ├── preprocessing.rs               # RAW→features Pipeline (firewall + clipping)
-│           ├── model.rs                       # XGBoost JSON Tree Parser
-│           └── inference.rs                   # Inference Engine (f32 + sigmoid)
+│   ├── xgb_model_edge_iot.json         # 34 features, 200 trees
+│   ├── inference_contract_edge_iot.json# v2, byte-deterministic
+│   ├── metrics_edge_iot.json           # threshold justification
+│   ├── export_manifest_edge_iot.json   # 7 hashes + provenance (run_fingerprint, created_at)
+│   ├── parity_sample_edge_iot.json     # 100 × 34 f32
+│   ├── raw_parity_case_iot.json        # real golden case, double checkpoint
+│   ├── index.html · demo.js
+│   └── churn-wasm/
+│       ├── Cargo.toml · Cargo.lock
+│       ├── pkg/                        # WASM tracked for Pages
+│       ├── src/{lib,contract,preprocessing,model,inference}.rs
+│       └── tests/{contract_live,parity_raw_iot}.rs
 │
-├── mock_bank/                                 # 🟢 (Phase 3) Simulated Backend
-│   ├── main.py                                # FastAPI with 5 endpoints
-│   ├── requirements.txt                       # Dependencies (fastapi, uvicorn, pydantic)
-│   ├── __init__.py                            # Python Package
-│   └── README.md                              # Endpoint Documentation
-│
+├── mock_bank/
 ├── src/
-│   ├── config.py                              # (Updated: IOT_REFERENCE, Bounds)
-│   ├── data_loading.py                        # (Updated: with_iot=True)
-│   ├── preprocessing.py                       # (Updated: apply_iot_bounds)
-│   ├── train.py                               # (Updated: optimize_threshold)
-│   ├── synthetic_iot.py                       # 🟢 (Phase 2) Simulation Engine
-│   └── export_edge.py
+│   ├── config.py                       # no constants from retired lineages
+│   ├── data_contract.py                # ingestion contract v1.1.0
+│   ├── data_loading.py · preprocessing.py · train.py · synthetic_iot.py
 │
 ├── scripts/
-│   ├── train_model.py                         # (Phase 1)
-│   ├── export_edge.py                         # (Phase 1)
-│   ├── validate_parity.py                     # (Phase 1)
-│   ├── train_edge_model.py                    # (Phase 1)
-│   ├── export_edge_lite.py                    # (Phase 1)
-│   ├── generate_synthetic_iot.py              # 🟢 (Phase 2)
-│   ├── train_edge_iot_model.py                # 🟢 (Phase 2)
-│   ├── export_edge_iot.py                     # 🟢 (Phase 3) Enriched Contract v2
-│   └── validate_parity_raw_iot.py             # 🟢 (Phase 3) Generates IoT Golden Case
+│   ├── curate_raw.py · calibrate_iot_reference.py
+│   ├── generate_synthetic_iot.py
+│   ├── train_edge_iot_model.py · export_edge_iot.py
+│   ├── check_artifact_hashes.py · check_contract_posture.py
 │
-└── .github/workflows/ci.yml
-```
----
-
-## 📄 Inference Contract
-
-The inference contract ensures that Python, Rust, and the frontend interpret the model exactly the same way.
-
-The edge contract includes:
-- `feature_order`
-- `numeric_imputer`
-- `categorical_imputer`
-- `ordinal mappings`
-- `one-hot categories`
-- `scaler mean/scale`
-- `best_threshold`
-- `xgboost base_score`
-
-This prevents classic deployment pitfalls:
-- Unordered features.
-- Mishandled new categories.
-- Inconsistent scaling.
-- Different imputation between train and serving.
-- Wrong threshold.
-- Misinterpreted base score.
----
-
-## 🧰 Main Commands
-
-| Command | Description |
-| --- | --- |
-| `uv run py run_all.py` | Runs full pipeline on Windows |
-| `make all` | Runs full pipeline on Linux/macOS |
-| `uv run py scripts/train_model.py` | Trains full model |
-| `uv run py scripts/export_edge.py` | Exports full model to edge |
-| `uv run py scripts/validate_parity.py` | Validates Python ↔ JSON parity |
-| `uv run py scripts/train_edge_model.py` | Trains edge model |
-| `uv run py scripts/export_edge_lite.py` | Exports lightweight edge model |
-| `uv run py scripts/validate_parity_raw.py` | Generates RAW golden file |
-| `cargo test` | Runs Rust tests |
-| `cargo test --test parity_raw` | Runs RAW Python ↔ Rust parity test |
-| `wasm-pack build --target web --release` | Compiles WASM |
-| `python -m http.server 8000` | Serves local demo |
----
-## ✅ Tests
-
-### Python Tests
-The main validators are:
-
-```bash
-uv run py scripts/validate_parity.py
-uv run py scripts/validate_parity_raw.py
+└── tests/
+    ├── test_data_contract.py           # rejects the raw, accepts the curated
+    └── test_iot_z_distribution.py      # the symptom has a ceiling
 ```
 
-- The first validates: **Python/XGBoost ↔ Exported JSON**
-- The second validates: **Raw Input → preprocessing → final probability (Python ↔ Rust)**
+---
 
-### Rust Tests
+## 📄 Inference contract
 
-```bash
-cd edge/churn-wasm
-cargo test -- --nocapture
-```
-
-Includes:
-- Sigmoid.
-- Error handling.
-- One-hot logic.
-- Base score conversion.
-- End-to-end RAW parity.
-
-Expected output for the RAW parity test:
+The `inference_contract_edge_iot.json` contract (v2) includes:
 
 ```text
-Python: 0.59665781
-Rust:   0.59665781
-diff:   7.31e-09
+feature_order · n_features
+numeric_imputer · categorical_imputer
+ordinal mappings + is_unknown flags
+one-hot categories (get_feature_names_out order)
+scaler mean/scale
+best_threshold
+xgboost base_score
+iot_features · iot_bounds
+forbidden_fields · consent_required
+model_sha256
 ```
+
+This prevents classic deployment pitfalls: unordered features, mishandled new
+categories, inconsistent scaling, imputation differing between train and
+serving, wrong threshold, misinterpreted base score.
+
+The contract is **byte-deterministic**: `created_at` lives in
+`export_manifest_edge_iot.json`, not here. Two consecutive exports produce the
+same `sha256`.
+
+> ⚠️ `model_sha256` travels in the contract; the engine does not verify it yet.
+> Declared gap, with a closure plan in the B → C → D sequence.
+
+---
+
+## 🧰 Main commands
+
+| Command | Description |
+|---|---|
+| `uv run python run_all.py` | Full Edge IoT chain |
+| `uv run python scripts/curate_raw.py` | Forensic curation R1–R5 (explicit) |
+| `uv run python scripts/calibrate_iot_reference.py` | Recalibrates IOT_REFERENCE on train (explicit) |
+| `uv run python scripts/check_artifact_hashes.py` | Read-only integrity gate (12 checks) |
+| `uv run python scripts/check_contract_posture.py` | Posture gate (4 armed controls) |
+| `uv run pytest tests/ -v -s` | Data contract + z distribution |
+| `cargo test` | Rust tests: live contract + IoT parity + firewall |
+| `wasm-pack build --target web --release` | Builds WASM |
+| `python -m http.server 8000` | Serves local demo |
+
+---
+
+## ✅ Tests
+
+### Python
+
+```bash
+uv run pytest tests/ -v -s
+```
+
+| Test | What it certifies |
+| --- | --- |
+| `test_data_contract.py::test_gate_rejects_mutated_origin` | The mutated origin fails with the 4 literals. **It is the audit's control group** |
+| `test_data_contract.py::test_gate_accepts_curated_ssot` | Positive control: without it, a `validate()` that rejects everything would pass the previous test |
+| `test_iot_z_distribution.py` | Prints the per-feature z table and enforces a ceiling. The symptom cannot return |
+
+Plus two read-only gates, invoked by CI before installing dependencies:
+
+```bash
+python scripts/check_artifact_hashes.py     # 12 checks: integrity · agreement · coupling
+python scripts/check_contract_posture.py    # 4 controls present AND armed
+```
+
+### Rust
+
+```bash
+cd edge/churn-wasm && cargo test -- --nocapture
+```
+
+11 tests: 7 unit tests (`contract`, `inference`, `lib`) + `contract_live` (1) +
+`parity_raw_iot` (3: end-to-end parity, privacy firewall, characterization of
+silent clipping).
+
+Expected output of the IoT parity test (verbatim):
+
+```text
+🐍 Python (expected): 0.00150453
+🦀 Rust   (got):      0.00150453
+📉 Diff:              1.81e-11
+🏁 Resultado:         ✅ PASS
+```
+
+The three consistency asserts (`threshold`, `n_features`, `n_trees`) **read
+from the deployed artifacts**, not from test constants.
+
 ---
 
 ## 🔄 CI/CD
 
-The project is CI-ready with GitHub Actions.
+`on: [push, pull_request]` — coverage on all branches.
 
-**CI Goal:**
-- Validate Python ↔ JSON parity.
-- Validate RAW Python ↔ Rust parity.
-- Run Rust tests.
-- Compile WASM.
-- Prevent numerical regressions.
+**Job `python-gates`:** integrity and posture with system Python (pure stdlib,
+fail in 2 s), then `uv sync --frozen`, data contract gate, telemetry
+regeneration, and z distribution gate with the table printed in the log.
 
-**Suggested Workflow:**
+**Job `rust-wasm`:** `cargo test` (all binaries) + `wasm-pack build`.
 
 ```yaml
 name: CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+on: [push, pull_request]
 
 jobs:
-  python-parity:
-    name: Python parity checks
+  python-gates:
+    name: Python gates (integridad · postura · contrato · IoT z)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Gate de integridad (read-only, 12 verificaciones)
+        run: python3 scripts/check_artifact_hashes.py
+
+      - name: Gate de postura del contrato (controles ARMADOS)
+        run: python3 scripts/check_contract_posture.py
+
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install numpy pandas xgboost joblib scikit-learn imbalanced-learn
-      - name: Parity Python ↔ JSON
-        run: python scripts/validate_parity.py
-      - name: Parity RAW → proba
-        run: python scripts/validate_parity_raw.py
+          python-version: "3.10.11"
+
+      - name: Sync dependencias (lockfile fail-closed)
+        run: uv sync --frozen
+
+      - name: Gate de contrato de datos
+        run: uv run pytest tests/test_data_contract.py -v -s
+
+      - name: Regenerar telemetría sintética
+        run: uv run python scripts/generate_synthetic_iot.py
+
+      - name: Gate de distribución z (tabla en el log)
+        run: uv run pytest tests/test_iot_z_distribution.py -s
 
   rust-wasm:
     name: Rust tests + WASM build
@@ -795,248 +777,292 @@ jobs:
         run: cargo install wasm-pack --locked
       - name: Cargo tests
         run: cd edge/churn-wasm && cargo test -- --nocapture
-      - name: RAW parity test
-        run: cd edge/churn-wasm && cargo test --test parity_raw -- --nocapture
       - name: Build WASM
         run: cd edge/churn-wasm && wasm-pack build --target web --release
 ```
+
+The legacy `python-parity` job was retired in ADR-0006 along with the Phase 1
+scripts it invoked. It used Python 3.11 with unpinned `pip install` while the
+rest of the repo honored `uv.lock` (3.10.11): two interpreters, one lockfile.
+
 ---
 
-## 🧾 Generated Artifacts
+## 🧾 Generated artifacts
 
-After the full pipeline runs, Python and edge artifacts are generated.
-
-**Python artifacts**
+### Local, git-ignored (regenerable derivatives)
 
 ```text
-model_artifacts/
-    xgb_model.joblib
-    scaler.joblib
-    onehot_encoder.joblib
-    num_imputer.joblib
-    cat_imputer.joblib
-    ordinal_imputer.joblib
-    model_config.joblib
+model_artifacts/edge_iot/
+    xgb_model.joblib · scaler.joblib · onehot_encoder.joblib
+    num_imputer.joblib · cat_imputer.joblib · ordinal_imputer.joblib
+    ordinal_mappings.joblib · model_config.joblib
+    X_test_scaled_sample.csv · X_test_raw_sample.csv
+    sample_provenance.json · metrics.json
+
+data/processed/credit_card_churn_iot_synthetic.csv
+edge/*.npy
 ```
 
-**Edge full artifacts**
-
-```text
-edge/
-    xgb_model.json
-    inference_contract.json
-    parity_sample.json
-    sample_scaled.npy
-    expected_proba.npy
-    expected_margin.npy
-```
-
-**Edge lite artifacts**
+### Tracked — source of truth for Rust and for the auditor
 
 ```text
 edge/
-    xgb_model_edge.json
-    inference_contract_edge.json
-    parity_sample_edge.json
-    sample_scaled_edge.npy
-    expected_proba_edge.npy
-    expected_margin_edge.npy
-    raw_parity_case.json
+    xgb_model_edge_iot.json           34 features · 200 trees
+    inference_contract_edge_iot.json  v2 · byte-deterministic
+    metrics_edge_iot.json             AUC, matrix, F2 criterion, caveats
+    export_manifest_edge_iot.json     7 hashes + provenance (run_fingerprint, created_at)
+    parity_sample_edge_iot.json       100 × 34 f32
+    raw_parity_case_iot.json          real golden case · double checkpoint
+
+data/curated/                         SSOT + manifests + quarantine
+data/synthetic/iot_features_metadata.json
 ```
+
+**Criterion:** a tracked artifact that depends on ignored inputs is orphaned
+evidence. The `.joblib` files are rebuilt; the JSON files in `edge/` and the
+manifests are the official record. See ADR-0004.
+
 ---
 
-## 🧠 Full Model vs Edge Model
-
-**Full Model**
-- Maximum precision.
-- More features.
-- More trees.
-- Larger weight.
-- Suited for backend, API, or batch scoring.
-
-**Edge Model**
-- Reduced weight.
-- Fast inference.
-- Lower complexity.
-- Browser-compatible.
-- Controlled performance drop.
-- Ideal for edge, interactive demos, and local privacy.
----
-
-## 💼 Business Impact
+## 💼 Business impact
 
 | Area | Impact |
-| --- | --- |
-| **Infrastructure** | Reduces server-side inference costs |
-| **Privacy** | Raw data never leaves the device |
-| **Latency** | Immediate local prediction |
-| **Retention** | Early detection of churn risk |
-| **Product** | Interactive experience without a backend |
-| **Compliance** | Favors data minimization |
-| **Costs** | Fewer dependencies on APIs or cloud services |
+|---|---|
+| Infrastructure | Reduces server-side inference cost |
+| Privacy | Raw data never leaves the device |
+| Latency | Immediate local prediction |
+| Retention | Early detection of churn risk |
+| Product | Interactive experience without a backend |
+| Compliance | Favors data minimization |
+| Costs | Fewer dependencies on APIs or cloud services |
+
 ---
 
-## 🔐 Security and Considerations
+## 🔐 Security and considerations
 
 This project follows privacy-by-design principles, but there are important considerations:
+
 - The model is distributed to the client.
 - The model should not be considered a secret if published in the browser.
-- Local inference protects user data, but not necessarily the model's IP.
+- Local inference protects user data, not necessarily the model's IP.
 - It should not be used as the sole anti-fraud mechanism.
+- If deployed to production, it is recommended to:
+  - Sign artifacts.
+  - Use Subresource Integrity for WASM/JS.
+  - Version models.
+  - Register contract hashes.
+  - Monitor drift.
+  - Maintain an audit trail of changes.
 
-If deployed to production, it is recommended to:
-- Sign artifacts.
-- Use Subresource Integrity for WASM/JS.
-- Version models.
-- Register contract hashes.
-- Monitor drift.
-- Maintain an audit trail of changes.
 ---
 
-## 📡 Production and Monitoring
+## 📡 Production and monitoring
 
 To take this system to production, the following is recommended:
 
-**Data Monitoring**
+### Data monitoring
+
 - Numeric feature drift.
 - Categorical drift.
 - Shifts in prediction distribution.
 - Changes in actual churn rate.
 
-**Model Monitoring**
+### Model monitoring
+
 - AUC/F2 over rolling windows.
 - Threshold stability.
 - Delta between prediction and actual outcome.
-- Periodic comparison against the full model.
 
-**MLOps**
+### MLOps
+
 - Model versioning.
 - Artifact hashing.
 - Inference contract registry.
 - Parity tests in CI.
 - Reproducible training with fixed seeds.
 - Canary deployments for new edge models.
+
 ---
 
 ## 🐞 Troubleshooting
 
-**Parity fails by a tiny margin**
-- Verify that Rust is using `f32` arithmetic for:
-  - Split comparisons.
-  - Margin accumulation.
-  - Tree evaluating.
+### Parity fails by a tiny margin
 
-**`UnicodeEncodeError` on Windows**
-- If a script writes JSON with Unicode characters, always use:
-  `encoding="utf-8"`
-  Example:
-  `out_path.write_text(payload, encoding="utf-8")`
-  Or run with:
-  `PYTHONUTF8=1`
+Verify that Rust is using `f32` arithmetic for:
 
-**The demo doesn't load WASM**
-- Verify that these exist:
-  `edge/churn-wasm/pkg/churn_wasm.js`
-  `edge/churn-wasm/pkg/churn_wasm_bg.wasm`
-  Both must exist after:
-  `wasm-pack build --target web --release`
+- Split comparisons.
+- Margin accumulation.
+- Tree evaluation.
 
-**The browser caches the WASM**
-- Perform a hard reload:
-  `Ctrl + Shift + R`
-  Or clear the cache.
----
+### `UnicodeEncodeError` on Windows
 
-## 🗺️ Project Evolution: From Classical Churn to IoT Banking SDK
+If a script writes JSON with Unicode characters, always use:
 
-This repository documents the development of a deterministic edge inference engine. What began as a traditional banking churn model (Milestone 1) has evolved into a comprehensive IoT SDK featuring cryptographic privacy contracts for the financial industry.
+```python
+encoding="utf-8"
+```
 
-### 🏁 Milestone 1: The Deterministic Engine (Completed ✅)
-The physical and mathematical foundation of the SDK is fully operational and certified.
-- [x] XGBoost training with a strict anti-leakage pipeline.
-- [x] Edge optimization (72.1% weight reduction, 12 features).
-- [x] Inference engine in Rust / WebAssembly.
-- [x] Mathematical parity certification (Python ↔ JSON ↔ WASM) with a maximum discrepancy of `7.31e-09`.
-- [x] 100% client-side inference (Zero-Trust / 0 bytes sent to the server).
+Example:
 
-### 🌱 Milestone 2: IoT Telemetry and Privacy Contracts (Completed ✅)
-- [x] Synthetic IoT data generator (app usage, POS latency, NFC friction).
-- [x] Hybrid model training (19 banking features + 6 IoT = 25 raw → 34 post-preprocessing).
-- [x] Enriched inference contract JSON schema v2 (Privacy firewall + IoT bounds).
+```python
+out_path.write_text(payload, encoding="utf-8")
+```
 
-### 🛡️ Milestone 3: Secure Core in Rust (Completed ✅)
-- [x] Artifact integrity verification (Embedded SHA-256 in contract).
-- [x] Strict payload validation (Rejection of forbidden fields such as CVV, GPS, PAN).
-- [x] Automatic clipping for out-of-range IoT values (bounds enforcement).
-- [x] `init_engine` architecture with `OnceLock` (global zero-copy cache).
-- [x] End-to-end integration tests (RAW→proba parity with 1e-6 tolerance).
-- [ ] Cross-platform compilation (Android `.so`, iOS `.a`) — *pending*.
-- [ ] Formal benchmarking with `criterion.rs` — *pending*.
+Or run with:
 
-### 🔌 Milestone 4: B2B Ecosystem Integration (Partially Completed 🚧)
-- [x] `Mock Bank API` (FastAPI with 5 endpoints: health, features, consent POST/GET, clients).
-- [x] GDPR consent management (registration + revocation + persistence).
-- [x] *Offline-first* inference mode (embedded fallback + localStorage).
-- [ ] Web SDK (NPM + Web Workers) — *pending*.
-- [ ] Mobile wrappers (Kotlin/JNI and Swift/C-Bridge) — *pending*.
+```bash
+PYTHONUTF8=1
+```
 
-### 💼 Milestone 5: Banking UX and Business Logic (Completed ✅)
-- [x] Dual interface: Operator View (technical console) + Client View (banking app simulator).
-- [x] Explicit consent management using benefit-oriented language ("future personalized benefits").
-- [x] Business decision engine: `proba > threshold ∧ consent → cashback offer`.
-- [x] Implemented business rule: "If probability > 33% and consent is granted → offer $50 USD".
-- [ ] Privacy-preserving observability dashboard — *pending*.
+### The demo doesn't load WASM
+
+Verify these exist:
+
+```text
+edge/churn-wasm/pkg/churn_wasm.js
+edge/churn-wasm/pkg/churn_wasm_bg.wasm
+```
+
+Both must exist after:
+
+```bash
+wasm-pack build --target web --release
+```
+
+### The browser caches the WASM
+
+Perform a hard reload:
+
+```text
+Ctrl + Shift + R
+```
+
+or clear the cache.
 
 ---
 
-## 🎯 Current Project Status (November 2026)
+## 🗺️ Project evolution
 
-### ✅ What is working in production:
-1. **Full Python Pipeline**: Training → Edge Optimization → IoT Export → Parity Validation.
-2. **Rust/WASM Engine**: Deterministic inference with certified parity (max diff < 1e-8).
-3. **Enriched Contract v2**: Complete schema with imputers, ordinal, onehot, scaler, IoT bounds, and forbidden fields.
-4. **Mock Bank API**: Simulated backend with consent management and RESTful endpoints.
-5. **Dual Frontend**: Technical view (operator) + Commercial view (client) with retention business rules.
-6. **Zero-copy Architecture**: `init_engine` caches model+contract in `OnceLock`, inference < 1ms.
-7. **Offline Fallback**: Runs on GitHub Pages without the Mock Bank (embedded features + localStorage).
+This repository documents the construction of a deterministic edge inference engine. What began as a traditional banking churn model (Milestone 1) has evolved into a full IoT SDK with explicit privacy contracts for the financial industry.
 
-### 🚧 Pending for actual production:
-- Native compilation for Android/iOS
-- Formal benchmarking with `criterion.rs`
-- Observability dashboard
-- Distributable Web SDK via NPM
-- Cryptographic contract signing (Ed25519)
-- Integration with real banking systems (non-mock)
+### 🏁 Milestone 1 — Deterministic engine (retired, archived)
+The Full 28f baseline and the Edge Lite 12f were retired in ADR-0006. They
+served no traffic and descended from the mutated file. Recoverable from tag
+`baseline-fase3`. Their historical parity (7.31e-09) remains as an archival
+measurement.
+
+### 🌱 Milestone 2 — Forensic curation and SSOT (completed ✅)
+- [x] Fail-closed ingestion contract: dtype, units, algebraic identity
+- [x] R1–R5 curation with domain preconditions re-verified on every run
+- [x] MNAR quarantine without imputation (131 rows, z = −3.10)
+- [x] Chain of custody: hashes of origin, script, contract, and output
+- [x] IoT generator with support gate over the fixed reference
+
+### 🛡️ Milestone 3 — Rust core (partial 🚧)
+- [x] Privacy firewall: rejection of forbidden fields
+- [x] Consent gate (`lib.rs:66`)
+- [x] `init_engine` with `OnceLock`
+- [x] RAW→proba parity with double checkpoint (1.81e-11)
+- [x] The deployed contract deserializes in Rust (`contract_live.rs`)
+- [ ] **SHA-256 integrity verification in the engine** — `sha2` is not in
+      `Cargo.toml`. The hash travels in the contract; the engine does not check it yet
+- [ ] **Clipping with a flag** — today it clips silently. An impossible input
+      (`app_open = 9999`) produces a plausible prediction with no marker
+- [ ] **Mandatory controls in the schema** — four `#[serde(default)]`
+      attributes leave `forbidden_fields`, `iot_bounds`, `iot_features`, and
+      `consent_required` off by default
+- [ ] Rust test over the scaled samples
+- [ ] Cross-platform compilation (Android `.so`, iOS `.a`)
+- [ ] Formal benchmarking with `criterion.rs`
+
+### 🔌 Milestone 4 — B2B ecosystem (partial 🚧)
+- [x] Mock Bank API with consent management
+- [x] Offline-first mode (embedded fallback + localStorage)
+- [ ] Web SDK (NPM + Web Workers)
+- [ ] Mobile wrappers
+
+### 💼 Milestone 5 — Banking UX (partial 🚧)
+
+- [x] Dual interface: Operator View + Client View
+- [ ] **Retention policy outside the engine** — `offer_retention` is
+      compiled into WASM (`lib.rs:84`). The business decision belongs to the
+      application layer, not to the inference binary
+- [ ] Explicit, visible, revocable consent — not disguised as a benefits banner
+- [x] **Dynamic threshold from the contract** — the frontend reads
+      `best_threshold` from `inference_contract_edge_iot.json`; no test or
+      component hardcodes it. Evidence: "Business threshold" section and `edge/demo.js`
 
 ---
 
+## 🎯 Current status
+
+**Verified and in production:**
+- Curated SSOT with fail-closed contract and hash-based chain of custody
+- Rust/WASM engine with RAW→proba parity of 1.81e-11
+- 12 integrity checks + 4 posture checks in CI
+- 100% client-side inference, 0 bytes to the server
+- Dual demo on GitHub Pages with offline fallback
+
+**Known, declared gaps:**
+1. The engine does not verify the model's SHA-256 (`sha2` absent from the crate)
+2. Four contract controls are optional with a permissive default
+3. IoT clipping emits no flag: impossible input → plausible prediction
+4. The 14 banking columns have no bounds at inference time
+5. `best_round` is at the CV ceiling; early-stopping is inert on a monotonic
+   post-SMOTE curve
+6. The golden case lives at p ≈ 0.15%: it tolerates a logit error ~166× larger
+   than one in the mid-range
+7. SMOTE is applied before CV: validation AUC is optimistic.
+   **The publishable number is the test-set one**
+8. The retention policy is in the binary, not in the application
+
+Gaps 1–4 have a closure plan in the B → C → D sequence.
+
 ---
 
-## 📚 Tech Stack
+## 📚 Tech stack
 
-- **Python:** pandas, scikit-learn, imbalanced-learn, XGBoost
-- **Rust:** wasm-bindgen, wasm-pack
-- **WebAssembly**
-- **JavaScript:** Vanilla
-- **CI/CD:** GitHub Actions
+```text
+Python
+pandas
+scikit-learn
+imbalanced-learn
+XGBoost
+Rust
+wasm-bindgen
+wasm-pack
+WebAssembly
+Vanilla JavaScript
+GitHub Actions
+uv
+Pytest
+```
 
-**Reproducibility:**
-`SEED = 44`
+Reproducibility:
+
+```text
+SEED = 44
+```
+
 ---
 
-## 📌 Final Summary
+## 📌 Final summary
 
-Churn Edge AI transforms a traditional bank churn model into a lightweight, private, zero-marginal-cost edge inference system.
+**Churn Edge AI** turns a traditional banking churn model into a lightweight, private, zero-marginal-cost edge inference system.
 
 It combines:
-- Python for training
-- XGBoost for modeling
-- JSON as a portable format
-- Rust for secure, fast inference
-- WebAssembly for browser execution
-- Certified parity via testing
 
-It is a highly relevant use case for:
+```text
+Python for training
+XGBoost for modeling
+JSON as a portable format
+Rust for secure, fast inference
+WebAssembly for browser execution
+Certified parity via testing
+```
+
+It is a relevant use case for:
+
 - Banks.
 - Fintech.
 - Retail.
@@ -1044,6 +1070,7 @@ It is a highly relevant use case for:
 - Privacy-sensitive digital products.
 - Offline or low-connectivity environments.
 - Client-side ML architectures.
+
 ---
 
 ## 📫 Contact

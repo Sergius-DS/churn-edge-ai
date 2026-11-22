@@ -2,85 +2,56 @@
 """
 run_all.py
 ──────────
-Equivalente a `make all` para Windows.
+Cadena de producción del linaje Edge IoT. Cuatro pasos, en orden:
 
-Ejecuta:
-1. scripts/generate_synthetic_iot.py
-2. scripts/train_model.py
-3. scripts/export_edge.py
-4. scripts/validate_parity.py
-5. scripts/train_edge_model.py
-6. scripts/export_edge_lite.py
-7. scripts/train_edge_iot_model.py
-8. scripts/export_edge_iot.py
+  1. scripts/generate_synthetic_iot.py
+  2. Gate de distribución z  (bloqueante: aborta antes de entrenar)
+  3. scripts/train_edge_iot_model.py
+  4. scripts/export_edge_iot.py
+
+FUERA de la cadena por defecto, a propósito:
+  - curate_raw.py / calibrate_iot_reference.py: reescriben evidencia
+    trackeada. Un pipeline que regenera su propio grupo de control no
+    tiene grupo de control. Se invocan explícitamente y se verifican por hash.
 """
-
 import subprocess
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-
-SCRIPTS = [
-    # Fase IoT sintética
-    PROJECT_ROOT / "scripts" / "generate_synthetic_iot.py",
-
-    # Baseline
-    PROJECT_ROOT / "scripts" / "train_model.py",
-    PROJECT_ROOT / "scripts" / "export_edge.py",
-    PROJECT_ROOT / "scripts" / "validate_parity.py",
-
-    # Edge actual
-    PROJECT_ROOT / "scripts" / "train_edge_model.py",
-    PROJECT_ROOT / "scripts" / "export_edge_lite.py",
-
-    # Edge IoT
-    PROJECT_ROOT / "scripts" / "train_edge_iot_model.py",
-    PROJECT_ROOT / "scripts" / "export_edge_iot.py",
-]
+SCRIPTS = PROJECT_ROOT / "scripts"
 
 
-def run_script(script_path: Path) -> None:
+def _run(cmd: list[str], label: str) -> None:
     print("\n" + "=" * 70)
-    print(f"▶ Ejecutando: {script_path.name}")
+    print(f"▶ {label}")
     print("=" * 70)
+    subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
 
-    result = subprocess.run(
-        [sys.executable, str(script_path)],
-        cwd=PROJECT_ROOT,
-    )
 
-    if result.returncode != 0:
-        print(f"\n❌ El script falló: {script_path}")
-        sys.exit(result.returncode)
+def script(name: str) -> None:
+    path = SCRIPTS / name
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el script: {path}")
+    _run([sys.executable, str(path)], name)
 
-def run_iot_distribution_gate() -> None:
-    print("\n" + "=" * 70)
-    print("▶ Gate de distribución z (IoT)")
-    print("=" * 70)
 
-    subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_iot_z_distribution.py", "-s"],
-        check=True,
-        cwd=PROJECT_ROOT,
-    )
+def gate_z() -> None:
+    _run([sys.executable, "-m", "pytest",
+          "tests/test_iot_z_distribution.py", "-s"],
+         "Gate de distribución z (IoT)")
+
 
 def main() -> None:
     print("=" * 70)
-    print("🚀 CHURN EDGE AI — Pipeline completo en Windows")
+    print("🚀 CHURN EDGE AI — cadena Edge IoT")
     print("=" * 70)
-
-    for script in SCRIPTS:
-        if script.name == "train_edge_iot_model.py":
-            run_iot_distribution_gate()
-
-        if not script.exists():
-            raise FileNotFoundError(f"No se encontró el script: {script}")
-
-        run_script(script)
-
+    script("generate_synthetic_iot.py")
+    gate_z()
+    script("train_edge_iot_model.py")
+    script("export_edge_iot.py")
     print("\n" + "=" * 70)
-    print("✅ Pipeline completo ejecutado correctamente")
+    print("✅ Cadena completa ejecutada correctamente")
     print("=" * 70)
 
 

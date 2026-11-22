@@ -1,0 +1,12 @@
+# Politica de line endings para archivos cuyo sha256 esta publicado.
+# core.autocrlf=true normalizaba CRLF->LF al stagear; los manifests
+# registran el hash del disco (CRLF). -text evita la conversion.
+# diff fuerza diff textual pese al marcado no-texto.
+# Ver ADR-0004. Medicion: 9 de 11 archivos del gate dieron DIFF.
+# Los 2 OK (raw CSV, xgb_model JSON) ya son LF; -text no los altera.
+
+data/raw/*.csv       -text diff
+data/curated/*.csv   -text diff
+edge/*.json          -text diff
+scripts/*.py         -text diff
+src/*.py             -text diff
