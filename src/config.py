@@ -10,7 +10,7 @@ SSOT de contrato: src/data_contract.py (una sola fuente por hecho).
 
 from pathlib import Path
 
-# ← CAMBIO: una sola fuente por hecho
+# Una sola fuente por hecho
 from src.data_contract import (
     FORBIDDEN_FOR_TRAINING as LEAKAGE_COLUMNS,
     TARGET_MAP,
@@ -24,7 +24,7 @@ from src.data_contract import (
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# ← CAMBIO: el origen queda para forense; la SSOT operativa es el curated
+# El origen queda para forense; la SSOT operativa es el curated
 RAW_ORIGIN_PATH = PROJECT_ROOT / "data" / "raw" / "Credit_card_churn.csv"
 DATA_PATH       = PROJECT_ROOT / "data" / "curated" / "churn_curated.csv"
 
@@ -34,10 +34,10 @@ SYNTHETIC_PATH = PROJECT_ROOT / "data" / "synthetic"
 SYNTHETIC_IOT_CSV      = PROCESSED_PATH / "credit_card_churn_iot_synthetic.csv"
 SYNTHETIC_IOT_METADATA = SYNTHETIC_PATH / "iot_features_metadata.json"
 
+# namespace; padre de edge_iot. El directorio raíz es un nombre, no un destino.
 ARTIFACTS_DIR = PROJECT_ROOT / "model_artifacts"
 EDGE_DIR      = PROJECT_ROOT / "edge"
 
-EDGE_ARTIFACTS_DIR     = ARTIFACTS_DIR / "edge"
 EDGE_IOT_ARTIFACTS_DIR = ARTIFACTS_DIR / "edge_iot"
 
 EDGE_IOT_MODEL_JSON    = EDGE_DIR / "xgb_model_edge_iot.json"
@@ -54,8 +54,8 @@ TARGET = "Attrition_Flag"
 # ============================================================
 # LIMPIEZA DE DATOS
 # ============================================================
-# ← CAMBIO: LEAKAGE_COLUMNS ahora viene del contrato (import arriba).
-# ← CAMBIO: NUMERIC_LIKE_COLUMNS ELIMINADO.
+# LEAKAGE_COLUMNS viene del contrato (import arriba).
+# NUMERIC_LIKE_COLUMNS ELIMINADO.
 #   Fósil del síntoma normalizado. Registrado en ADR-0005.
 #   El contrato garantiza dtype; la coerción era un disfraz.
 
@@ -92,27 +92,7 @@ TEST_SIZE = 0.20
 
 
 # ============================================================
-# XGBOOST — Modelo FULL
-# ============================================================
-XGB_PARAMS = {
-    "objective": "binary:logistic",
-    "eval_metric": "auc",
-    "max_depth": 4,
-    "learning_rate": 0.05,
-    "subsample": 0.8,
-    "colsample_bytree": 0.8,
-    "min_child_weight": 3,
-    "seed": SEED,
-    "verbosity": 1,
-}
-
-CV_NUM_BOOST_ROUND       = 500
-CV_NFOLD                 = 5
-CV_EARLY_STOPPING_ROUNDS = 8
-
-
-# ============================================================
-# XGBOOST — Modelo EDGE
+# XGBOOST — Modelo EDGE IoT (único linaje vivo)
 # ============================================================
 XGB_EDGE_PARAMS = {
     "objective": "binary:logistic",
@@ -128,42 +108,17 @@ XGB_EDGE_PARAMS = {
     "verbosity": 1,
 }
 
-EDGE_CV_NUM_BOOST_ROUND       = 200
-EDGE_EARLY_STOPPING_ROUNDS    = 10
+EDGE_CV_NUM_BOOST_ROUND    = 200
+EDGE_EARLY_STOPPING_ROUNDS = 10
 
-
-# ============================================================
-# FEATURES EDGE ACTUALES
-# ============================================================
-EDGE_TOP_FEATURES = [
-    "Total_Trans_Ct",
-    "Total_Revolving_Bal",
-    "Total_Ct_Chng_Q4_Q1",
-    "Months_Inactive_12_mon",
-    "Contacts_Count_12_mon",
-    "Total_Trans_Amt",
-    "Total_Relationship_Count",
-    "Avg_Utilization_Ratio",
-    "Total_Amt_Chng_Q4_Q1",
-    "Dependent_count",
-    "Gender_F",
-    "Marital_Status_Single",
-]
-
-
-# ============================================================
-# FEATURES IoT
-# ============================================================
-# ← CAMBIO: IOT_FEATURES ahora viene del contrato (import arriba).
-# ← CAMBIO: IOT_FEATURE_BOUNDS ahora viene del contrato (import arriba).
-
-EDGE_IOT_TOP_FEATURES = EDGE_TOP_FEATURES + IOT_FEATURES
+# Consumidor vivo: train_with_cv (nfold). No pertenece a ningún linaje retirado.
+CV_NFOLD = 5
 
 
 # ============================================================
 # REFERENCIA FIJA PARA NORMALIZACIÓN IoT
 # ============================================================
-# ← CAMBIO: medida sobre TRAIN del curated, ddof=1.
+# Medida sobre TRAIN del curated, ddof=1.
 # Procedencia: data/curated/iot_reference_provenance.json
 # curated sha256 6bced2a3bf04db7b · n_train=7996 · seed=44
 IOT_REFERENCE = {
@@ -190,8 +145,9 @@ SYNTHETIC_IOT_PARAMS = {
 # ============================================================
 # THRESHOLD DE NEGOCIO
 # ============================================================
-# ← CAMBIO: STALE. Linaje corrupto. Se re-mide tras regeneración atómica.
-BEST_THRESHOLD = 0.38
+# ELIMINADO: BEST_THRESHOLD = 0.38 (dueño: modelo Full, retirado en ADR-0006).
+# El umbral del linaje vivo vive en model_artifacts/edge_iot/model_config.joblib
+# y se justifica en edge/metrics_edge_iot.json. Una fuente, un dueño, con recibo.
 
 
 # ============================================================

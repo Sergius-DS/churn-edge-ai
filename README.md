@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Rust-stable-orange" alt="Rust">
   <img src="https://img.shields.io/badge/WASM-edge-blue" alt="WASM">
   <img src="https://img.shields.io/badge/XGBoost-JSON-green" alt="XGBoost">
-  <img src="https://img.shields.io/badge/edge_model-229_KB-orange" alt="Edge Model">
+  <img src="https://img.shields.io/badge/edge_model-224_KB-orange" alt="Edge Model">
   <img src="https://img.shields.io/badge/inference-100%25_client--side-blue" alt="Inference">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
@@ -29,22 +29,19 @@
 Este proyecto demuestra cómo llevar un modelo clásico de Machine Learning desde un pipeline Python de entrenamiento hacia un motor de inferencia liviano, portable y privado, ejecutado completamente en el cliente.
 
 | Métrica | Resultado |
-|---|---:|
-| Modelo full — Test AUC | **0.9930** |
-| Modelo edge — Test AUC | **0.9894** |
-| Caída de AUC entre full y edge | **0.0036** |
-| Features full | 28 |
-| Features edge | 12 |
-| Árboles full | 500 |
-| Árboles edge | 200 |
-| Peso del modelo full JSON | ~819 KB |
-| Peso del modelo edge JSON | ~229 KB |
-| Reducción de peso | **72.1%** |
-| Paridad Python ↔ JSON | `0.00e+00` |
-| Paridad Rust/WASM ↔ Python en navegador | `2.02e-10` |
-| Paridad end-to-end RAW ↔ Rust | `7.31e-09` |
+| --- | --- |
+| Modelo Edge IoT — Test AUC | 0.9951 |
+| Features raw | 25 (19 bancarias + 6 IoT sintéticas) |
+| Features post-preprocessing | 34 |
+| Árboles | 200 (max_depth 3) |
+| Threshold de negocio | 0.22 (F2 sobre split interno pre-SMOTE) |
+| Peso del modelo JSON | 223.760 bytes (~224 KB) |
+| Peso gzip | 47.175 bytes (~47 KB, ratio 4.7×) |
+| Paridad RAW Python ↔ Rust | 1.81e-11 |
+| Réplica del contrato ≡ pipeline sklearn | max\|Δ\| = 0.000e+00 |
+| SSOT | `data/curated/churn_curated.csv` · 9.996 filas |
 | Inferencia | 100% client-side |
-| Envío de datos al servidor | 0 bytes |
+| Datos enviados al servidor | 0 bytes |
 
 ---
 
@@ -69,12 +66,8 @@ Para casos de uso donde la privacidad, el costo marginal y la velocidad importan
 
 1. Entrenamiento y evaluación en Python con XGBoost.
 2. Eliminación de fugas de información y preprocessing controlado.
-3. Optimización de un modelo edge:
-   - Menos features.
-   - Menos árboles.
-   - Menor profundidad.
-   - Regularización más fuerte.
-   - Menor peso de artefacto.
+3. Curación forense con contrato de ingestión fail-closed: dtype, unidades por
+   columna, identidad algebraica. Cuarentena MNAR declarada, sin imputar.
 4. Exportación del modelo a JSON.
 5. Generación de un contrato de inferencia.
 6. Motor de inferencia escrito en Rust.
@@ -87,71 +80,53 @@ Para casos de uso donde la privacidad, el costo marginal y la velocidad importan
 ## 🏗️ Arquitectura
 
 ```text
-┌────────────────────────────── PYTHON — TRAIN ──────────────────────────────┐
-│                                                                             │
-│  Credit_card_churn.csv                                                      │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Eliminación de leakage / IDs                                               │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Split train/test                                                           │
-│        │                                                                    │
-│        ▼                                                                    │
-│  Imputación → Ordinal → One-Hot → SMOTE → Scaling                           │
-│        │                                                                    │
-│        ▼                                                                    │
-│  XGBoost full + CV + early stopping                                         │
-│        │                                                                    │
-│        ├──► model_artifacts/                                                │
-│        │       xgb_model.joblib                                             │
-│        │       scaler.joblib                                                │
-│        │       encoders / imputers / config                                 │
-│        │                                                                    │
-│        └──► edge/                                                           │
-│                xgb_model.json                                               │
-│                inference_contract.json                                      │
-│                parity_sample.json                                           │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────── EDGE OPTIMIZATION ─────────────────────────────┐
-│                                                                             │
-│  Selección de top features                                                  │
-│  Menos árboles / menor profundidad                                          │
-│  Regularización más fuerte                                                  │
-│  Export edge:                                                               │
-│      xgb_model_edge.json                                                    │
-│      inference_contract_edge.json                                           │
-│      parity_sample_edge.json                                                │
-│      raw_parity_case.json                                                   │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
-                                      ▼
-┌──────────────────────────── RUST / WASM — INFER ───────────────────────────┐
-│                                                                             │
-│  churn-wasm/                                                                │
-│      contract.rs          parsing del contrato de inferencia                │
-│      preprocessing.rs     raw → impute → ordinal → one-hot → scale          │
-│      model.rs             parsing del JSON de árboles XGBoost               │
-│      inference.rs         recorrido de árboles con aritmética f32           │
-│      lib.rs               APIs wasm_bindgen                                 │
-│                                                                             │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                      │
-                                      ▼
-┌────────────────────────────────── BROWSER ──────────────────────────────────┐
-│                                                                             │
-│  index.html + demo.js                                                       │
-│      carga churn_wasm.js                                                    │
-│      carga xgb_model_edge.json                                              │
-│      carga inference_contract_edge.json                                     │
-│      ejecuta predicción local                                               │
-│      valida paridad con Python                                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────── PYTHON — CURATE + TRAIN ────────────────────────┐
+│                                                                            │
+│  data/raw/Credit_card_churn.csv        (inmutable · grupo de control)      │
+│        │                                                                   │
+│        ▼   curate_raw.py · R1–R5 · fail-closed                             │
+│  data/curated/churn_curated.csv        9.996 filas · INV-1/INV-2 = 100%    │
+│  data/curated/quarantine.csv           131 filas MNAR, sin imputar         │
+│        │                                                                   │
+│        ▼   generate_synthetic_iot.py · z_ref con gate de soporte           │
+│  + 6 features IoT sintéticas           → 29 columnas                       │
+│        │                                                                   │
+│        ▼   GATE z (bloqueante) · tests/test_iot_z_distribution.py          │
+│        │                                                                   │
+│        ▼   data_contract.validate → drop leakage/IDs → split               │
+│        │                                                                   │
+│        ▼   Imputación → Ordinal → One-Hot → SMOTE → Scaling                │
+│        │                              25 raw → 34 features                 │
+│        ▼   XGBoost edge (depth 3) + CV · optimize_threshold (F2)           │
+│        │                                                                   │
+│        ├──► model_artifacts/edge_iot/   (ignorado: derivados)              │
+│        │       *.joblib · metrics.json · sample_provenance.json            │
+│        │                                                                   │
+│        └──► export_edge_iot.py · triple checkpoint                         │
+│                xgb_model_edge_iot.json                                     │
+│                inference_contract_edge_iot.json   (v2, byte-determinista)  │
+│                metrics_edge_iot.json              (justifica el umbral)    │
+│                parity_sample_edge_iot.json · raw_parity_case_iot.json      │
+│                export_manifest_edge_iot.json      (7 hashes + procedencia) │
+│                                                                            │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     ▼
+┌────────────────────────── RUST / WASM — INFER ─────────────────────────────┐
+│  contract.rs        deserializa el contrato v2                             │
+│  preprocessing.rs   firewall → bounds IoT → impute → ordinal → onehot      │
+│                     → scale                                                │
+│  model.rs           parser de árboles XGBoost (arrays paralelos)           │
+│  inference.rs       traversal en f32 + sigmoide                            │
+│  lib.rs             init_engine (OnceLock) · predict_churn                 │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     ▼
+┌───────────────────────────────── BROWSER ──────────────────────────────────┐
+│  index.html + demo.js                                                      │
+│      carga churn_wasm.js                                                   │
+│      carga xgb_model_edge_iot.json                                         │
+│      carga inference_contract_edge_iot.json                                │
+│      predicción local · 0 bytes al servidor                                │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -175,7 +150,11 @@ La inferencia se ejecuta completamente en el navegador.
 
 ## 📊 Resultados del modelo
 
-### Comparativa Full vs Edge
+### Comparativa Full vs Edge (linaje retirado — ADR-0006, tag `baseline-fase3`)
+
+> ⚠️ **Histórico.** El baseline Full 28f y el Edge Lite 12f se retiraron porque
+> descendían del archivo mutado. El modelo vigente es **Edge IoT** (34 features,
+> threshold 0.22, AUC 0.9951). Ver sección "Métricas — Modelo Edge IoT".
 
 | Métrica | Full | Edge | Δ |
 |---|---:|---:|---:|
@@ -190,37 +169,44 @@ La inferencia se ejecuta completamente en el navegador.
 | Threshold | 0.38 | 0.38 | igual |
 | Peso JSON | 818,904 bytes | 228,629 bytes | -72.1% |
 
-### Interpretación
-
-El modelo edge pierde muy poca capacidad predictiva a cambio de:
-
-- Reducir el peso del modelo en **72.1%**.
-- Disminuir la cantidad de features de 28 a 12.
-- Reducir la complejidad de inferencia.
-- Hacer viable la ejecución en navegador.
-- Mantener un threshold de negocio estable.
-
-La caída de AUC fue:
-
-```text
-Δ AUC = 0.003620
-```
-
-Este valor está dentro del rango aceptable para un despliegue edge.
 
 ---
 
-## 🧠 Dataset y preparación
+## 🧠 Dataset, curación forense y SSOT
 
-El pipeline parte de un dataset de churn bancario con:
+El archivo de origen no era el dataset canónico. Tres columnas de tipo ratio
+venían con un punto decimal leído como separador de miles, y 131 celdas
+contenían fechas donde debía ir un ratio.
+
+| Artefacto | Filas | sha256 (prefijo) | Rol |
+| --- | --- | --- | --- |
+| `data/raw/Credit_card_churn.csv` | 10.127 | `41f4e92afcf6…` | Origen inmutable. Grupo de control |
+| `data/curated/churn_curated.csv` | 9.996 | `6bced2a3bf04…` | SSOT operativa |
+| `data/curated/quarantine.csv` | 131 | `a49c8ecee4cd…` | Celdas irrecuperables, sin imputar |
+
+**El contrato de ingestión rechaza el origen con 4 violaciones:** dos por tipo,
+una por unidades, la cuarta por identidad algebraica.
 
 ```text
-Filas iniciales:     10,127
-Columnas iniciales:  23
-Target:
-  0 → 8,500
-  1 → 1,627
+Total_Amt_Chng_Q4_Q1: no numérico (Unable to parse string "2024-03-01 00:00:00" at position 158)
+Total_Ct_Chng_Q4_Q1: no numérico (Unable to parse string "2024-05-02 00:00:00" at position 4)
+Avg_Utilization_Ratio: 6880 fuera de [0.0,1.0] (min=0 max=999)
+INV-2 violada: 32.0628%
 ```
+
+La cuarta no depende de haber adivinado las unidades:
+`utilización = saldo revolvente / límite`. Habría funcionado con un factor de
+siete en lugar de mil.
+
+Las 131 celdas irrecuperables **no se imputaron**: la ausencia resultó
+correlacionada con el valor (8 clientes attrited removidos contra 21 esperados
+bajo ausencia aleatoria; z = −3.10, aproximación normal a la binomial,
+P(X ≤ 8) exacta = 0.0005). Imputar la media habría inyectado sesgo alineado
+con el target.
+
+Reglas R1–R5, precondiciones de dominio y cadena de custodia completas en
+`data/curated/curation_manifest.json`. Evidencia del audit en `docs/evidence/`.
+
 
 ### Eliminación de leakage
 
@@ -232,12 +218,11 @@ Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Depend
 Naive_Bayes_Classifier_Attrition_Flag_Card_Category_Contacts_Count_12_mon_Dependent_count_Education_Level_Months_Inactive_12_mon_2
 ```
 
-Además, se convirtieron a numéricas:
-
-```text
-Total_Amt_Chng_Q4_Q1
-Total_Ct_Chng_Q4_Q1
-```
+Las dos columnas de trend llegaban como `object` porque contenían fechas. El
+pipeline original las coercionaba con `errors="coerce"` y las imputaba con la
+media: tres lavados silenciosos que convertían una violación de contrato en un
+valor plausible. Esa coerción fue **eliminada**. El contrato garantiza dtype;
+si el dato no parsea, se rechaza.
 
 ---
 
@@ -273,47 +258,61 @@ Evaluación final sobre test intacto
 - El threshold se define sobre validación, no sobre test.
 - Las métricas finales se calculan sobre test sin contaminación.
 
+⚠️ **Caveat declarado:** SMOTE se aplica al train completo antes del CV. Los
+puntos sintéticos se reparten entre folds, así que el AUC de validación es
+optimista por construcción. El número publicable es `test_auc`. SMOTE
+intra-fold va en rama aparte: cambia todos los números, incluido `base_score`.
+
 ---
 
-## 🪶 Optimización Edge
+## 🪶 Modelo Edge IoT
 
-El modelo edge fue entrenado específicamente para inferencia liviana en WASM.
+El modelo Edge IoT fue entrenado para inferencia liviana en WASM, combinando
+features bancarias tradicionales con telemetría IoT sintética.
 
 ### Estrategia
 
-- Selección de las features más importantes del modelo full.
-- Menor profundidad.
-- Menor número de árboles.
-- Regularización más fuerte.
-- Early stopping con cross-validation.
-- Exportación a JSON.
-- Validación de paridad.
+- **Sin selección de features:** usa las 19 features bancarias del curated + 6 features IoT.
+- Menor profundidad (`max_depth: 3` vs `4` del Full histórico).
+- Menor número de árboles (`200` vs `500`).
+- Regularización más fuerte (`gamma: 0.1`, `reg_lambda: 1.5`).
+- Early stopping con cross-validation (aunque estructuralmente inerte post-SMOTE).
+- Exportación a JSON con contrato de inferencia v2.
+- Validación de paridad en 5 capas (Python ↔ sklearn ↔ Rust).
 
-### Features edge
+### Features (25 raw → 34 post-preprocessing)
 
-Las 12 features seleccionadas fueron:
-
+**19 features bancarias** (del curated):
 ```text
-Total_Trans_Ct
-Total_Revolving_Bal
-Total_Ct_Chng_Q4_Q1
-Months_Inactive_12_mon
-Contacts_Count_12_mon
-Total_Trans_Amt
-Total_Relationship_Count
-Avg_Utilization_Ratio
-Total_Amt_Chng_Q4_Q1
-Dependent_count
-Gender_F
-Marital_Status_Single
+Customer_Age, Gender, Dependent_count, Education_Level, Marital_Status,
+Income_Category, Card_Category, Months_on_book, Total_Relationship_Count,
+Months_Inactive_12_mon, Contacts_Count_12_mon, Credit_Limit,
+Total_Revolving_Bal, Avg_Open_To_Buy, Total_Amt_Chng_Q4_Q1,
+Total_Trans_Amt, Total_Trans_Ct, Total_Ct_Chng_Q4_Q1, Avg_Utilization_Ratio
 ```
 
-### Parámetros edge
+**6 features IoT sintéticas** (generadas con gate de soporte):
+```text
+app_open_count_30d, contactless_usage_count_30d,
+payment_flow_abandon_count_30d, nfc_failed_attempts_30d,
+app_crash_count_30d, pos_latency_p95_ms
+```
 
-Config usada para el modelo edge:
+**Post-preprocessing (34 features):**
+- **20 numéricas directas:** 14 bancarias + 6 IoT
+- **4 derivadas ordinales:** `Income_Category_ordinal`, `Education_Level_ordinal`
+  + sus flags `is_unknown` (columnas numéricas, no one-hot)
+- **10 one-hot:** Gender × 2, Marital_Status × 4, Card_Category × 4
+
+Las 5 categóricas bancarias se reparten: 2 → ordinal + flag, 3 → one-hot.
+20 + 4 + 10 = 34. Verificado contra el export (`onehot=10`) y el contrato.
+
+### Parámetros Edge IoT
+
+Config usada para el modelo Edge IoT (`src/config.py::XGB_EDGE_PARAMS`):
 
 ```python
-edge_params = {
+XGB_EDGE_PARAMS = {
     "objective": "binary:logistic",
     "eval_metric": "auc",
     "max_depth": 3,
@@ -326,121 +325,80 @@ edge_params = {
     "seed": 44,
     "verbosity": 1,
 }
+
+EDGE_CV_NUM_BOOST_ROUND = 200
+EDGE_EARLY_STOPPING_ROUNDS = 10
 ```
+
+> ⚠️ **Caveat:** `best_round = 200` coincide con `EDGE_CV_NUM_BOOST_ROUND`. Es el
+> techo, no un óptimo medido. Ver sección "Threshold de negocio".
+
 
 ---
 
-## 📈 Métricas de clasificación
+## 📈 Métricas — Modelo Edge IoT
 
-### Modelo Full
-
-```text
-Test AUC:  0.993047
-Threshold: 0.38
-
-Matriz de confusión:
-[[1671   30]
- [  28  297]]
-
-TP = 297
-FN = 28
-FP = 30
-TN = 1671
-```
-
-### Modelo Edge
+Test AUC: **0.995074** · Threshold: **0.22** · n_test: 2.000
 
 ```text
-Test AUC:  0.989427
-Threshold: 0.38
-
 Matriz de confusión:
-[[1662   39]
- [  31  294]]
+[[1568  108]
+ [   5  319]]
 
-TP = 294
-FN = 31
-FP = 39
-TN = 1662
+TP = 319 · FN = 5 · FP = 108 · TN = 1568
 ```
+
+| Clase | Precision | Recall | F1 |
+| --- | --- | --- | --- |
+| Existing (0) | 1.00 | 0.94 | 0.97 |
+| Attrited (1) | 0.75 | 0.98 | 0.85 |
+
+Accuracy: 0.94 · Split: 7.996 train / 2.000 test · SMOTE: 7.996 → 13.402
+
+Fuente de verdad: `edge/metrics_edge_iot.json`. Esta tabla es un espejo legible; el artefacto es el acta.
 
 ---
 
 ## 🎚️ Threshold de negocio
 
-El threshold usado es:
+`threshold = 0.22`
 
-```text
-threshold = 0.38
-```
+Optimizado por F2 sobre un split interno del train **antes de SMOTE**, con
+scaler propio ajustado en ese split. No se usó `0.5` porque el costo es
+asimétrico: un falso negativo es un cliente que se va sin detectar.
 
-No se usa `0.5` porque el costo de negocio no es simétrico.
+El umbral vive en `model_artifacts/edge_iot/model_config.joblib` y se publica
+en el contrato. **Ningún test ni frontend lo hardcodea**: lo leen del artefacto.
 
-En churn:
+Trade-off declarado: FN 5 contra FP 108. Es el objetivo F2 operando como se
+diseñó, no un defecto.
 
-- Un falso negativo implica no detectar a un cliente que se va.
-- Un falso positivo implica alertar a un cliente que finalmente no se va.
-
-Por eso se optimizó una métrica orientada a recall, usando criterio tipo **F2**, donde penaliza más no detectar un churn real.
-
----
-
-## 🧪 Paridad matemática certificada
-
-Uno de los requisitos críticos del proyecto es que Rust/WASM produzca el mismo resultado que Python/XGBoost.
-
-La paridad fue validada en múltiples capas.
-
-| Capa | Qué compara | Herramienta | Max diff |
-|---|---|---|---:|
-| 1 | Python ↔ JSON exportado | `scripts/validate_parity.py` | `0.00e+00` |
-| 2 | JSON ↔ Rust usando features ya escaladas | `verify_parity` en navegador | `2.02e-10` |
-| 3 | Input RAW → probabilidad, Python ↔ Rust | golden file + `cargo test` | `7.31e-09` |
-| 4 | Demo WASM vs Python | cross-check manual | `0.0042%` por redondeo visual |
-
-### Caso dorado RAW
-
-Para validar todo el preprocessing Rust, se generó un golden file con Python:
-
-```text
-Python edge:   59.6658%
-Demo WASM:     59.67%
-Diff visual:   0.0042%
-```
-
-Test Rust:
-
-```text
-Python: 0.59665781
-Rust:   0.59665781
-diff:   7.31e-09
-```
-
-Esto certifica que la cadena completa se comporta de forma equivalente:
-
-```text
-Input crudo
-    ↓
-Imputación numérica
-    ↓
-Imputación categórica
-    ↓
-Ordinal Income/Education
-    ↓
-Flags is_unknown
-    ↓
-One-Hot Gender/Marital/Card
-    ↓
-StandardScaler
-    ↓
-Árboles XGBoost en Rust
-    ↓
-Sigmoid
-    ↓
-Probabilidad de churn
-```
+⚠️ `best_round = 200` coincide con `EDGE_CV_NUM_BOOST_ROUND`. Es el techo, no
+un óptimo medido: el CV seguía subiendo en la iteración 199 y el early-stopping
+es estructuralmente inerte sobre una curva monótona post-SMOTE. Registrado en
+`metrics_edge_iot.json`.
 
 ---
+
+## 🧪 Paridad certificada
+
+| Capa | Qué compara | Dónde | Max diff |
+| --- | --- | --- | --- |
+| 1 | Réplica del contrato ≡ pipeline sklearn | `export_edge_iot.py` · Checkpoint 3 | **0.000e+00** |
+| 2 | RAW → preprocessing → árboles → proba, Python ↔ Rust | `tests/parity_raw_iot.rs` | **1.81e-11** |
+| 3 | El contrato desplegado deserializa en Rust | `tests/contract_live.rs` | pass/fail |
+| 4 | Integridad de artefactos vs manifests | `check_artifact_hashes.py` | 12 checks |
+| 5 | Controles del contrato presentes **y armados** | `check_contract_posture.py` | 4 controles |
+
+La capa 1 es la que cierra el eslabón intermedio: sin ella, la réplica podría
+ser auto-consistente con Rust y distinta de lo que el modelo vio al entrenar.
+
+**Golden case:** fila real del curated + IoT (`CLIENTNUM 720014358`), con
+doble checkpoint — `expected_scaled` (34 f32) y `expected_proba` — y tolerancia
+declarada en el propio archivo. Cumple INV-1 e INV-2.
+
+Pendiente: test Rust sobre las 100 muestras escaladas de
+`parity_sample_edge_iot.json` (hueco 3).
 
 ---
 
@@ -448,13 +406,14 @@ Probabilidad de churn
 
 En Machine Learning es común inflar métricas accidentalmente mediante *data leakage*, *p-hacking* o manipulando el entorno de ejecución. Este proyecto aplica reglas estrictas para garantizar que los resultados sean honestos, reproducibles y aptos para producción:
 
-| Práctica de Transparencia | Implementación en este proyecto |
+| Práctica | Implementación |
 |---|---|
-| **Cero Data Leakage** | El `split train/test` se realiza *antes* de cualquier imputación, escalado o SMOTE. El test set permanece completamente intocado hasta la evaluación final. |
-| **Trade-offs Honestos** | La optimización edge no oculta su costo. Se reporta abiertamente la caída de AUC (`-0.0036`) al reducir la complejidad del modelo, en lugar de manipular métricas. |
-| **Threshold Congelado** | El umbral de negocio (`0.38`) se definió mediante validación (F2-score) y se congeló. No se ajustó iterativamente contra el test set para inflar el *Recall*. |
-| **Sin `RUSTFLAGS` mágicos** | El motor WASM se compiló con perfiles estándar (`--release`). **No** se utilizó `target-cpu=native` ni flags ocultos para forzar artificialmente la paridad o la velocidad. |
-| **Paridad Exacta (No aproximada)** | No nos conformamos con "diferencias pequeñas" por redondeo. Se replicó deliberadamente la aritmética `f32` interna de XGBoost en Rust para lograr un `max diff` de `7.31e-09`. |
+| **Cero Data Leakage** | El split se realiza antes de imputación, escalado y SMOTE. El test no ajusta transformaciones. **Caveat:** SMOTE precede al CV, así que el AUC de validación es optimista; el número publicable es `test_auc` |
+| **Trade-offs Honestos** | Se declara FN 5 contra FP 108 en el umbral 0.22, y que `best_round` está en el techo del CV. No se oculta el costo del objetivo F2 |
+| **Threshold con recibo** | El umbral (0.22) se definió por F2 sobre split interno pre-SMOTE y vive en `model_config.joblib`. Su justificación está trackeada en `metrics_edge_iot.json`. Ningún test lo hardcodea |
+| **Sin `RUSTFLAGS` mágicos** | Perfiles estándar (`--release`). Sin `target-cpu=native` ni flags ocultos |
+| **Paridad Exacta** | Aritmética `f32` de XGBoost replicada deliberadamente. RAW→proba: `1.81e-11`. Réplica del contrato ≡ pipeline sklearn: `0.000e+00` |
+| **Curación declarada** | El curated **no es BankChurners canónico**: 131 filas menos, prevalencia 0.16066 → 0.16196. El raw mutado se conserva inmutable como grupo de control |
 
 > 📌 **Nota sobre Benchmarks de Rendimiento:** La optimización de *precisión, peso y paridad matemática* está certificada. Las métricas de latencia actuales (`< 1ms`) son empíricas, medidas directamente en el navegador. El proyecto **aún no implementa una suite formal de benchmarks de throughput con `criterion.rs`** en Rust nativo para evitar sesgos de medición del entorno del navegador (JIT, GC, fetch). Añadir `criterion` para benchmarks aislados es el siguiente paso en el roadmap de MLOps.
 
@@ -462,28 +421,42 @@ En Machine Learning es común inflar métricas accidentalmente mediante *data le
 
 ## 🦀 Motor Rust / WASM (Espejo de Inferencia Python)
 
-Para garantizar una paridad numérica certificada (`max diff ~ 7.31e-09`), el motor en Rust **no utiliza librerías externas de Machine Learning**, sino que implementa una réplica exacta, línea por línea y función por función, del pipeline de preprocesamiento y la lógica de inferencia desarrollada originalmente en Python.
+El motor **no utiliza librerías externas de Machine Learning**: implementa una
+réplica del pipeline de preprocesamiento y de la lógica de inferencia de Python.
+Paridad RAW→proba certificada en **1.81e-11** (`tests/parity_raw_iot.rs`).
 
 El motor en Rust es responsable de:
 
-1. **Cargar el modelo XGBoost en JSON:** Parsear la estructura de árboles, nodos, splits y pesos base exactamente como lo exporta XGBoost.
-2. **Cargar el contrato de inferencia:** Leer y validar los metadatos de configuración (`inference_contract_edge.json`).
+1. **Cargar el modelo XGBoost en JSON:** parsing de árboles con arrays paralelos
+   (`left_children`, `right_children`, `split_indices`, `split_conditions`,
+   `base_weights`, `sum_hessian`). No hay objetos-nodo ni campo `nodeid`.
+2. **Cargar el contrato de inferencia:** `inference_contract_edge_iot.json` (v2).
 3. **Replicar el preprocesamiento RAW:**
-   - Aplicar imputación numérica (`strategy='median'`) y categórica (`strategy='most_frequent'`) replicando los `SimpleImputer` ajustados en el `train` de Python.
-   - Ejecutar el **encoding ordinal** para variables como ingresos y educación.
-   - Generar los flags de control (`is_unknown`) y las categorías **One-Hot** con idéntico orden y comportamiento ante categorías no vistas.
-   - Aplicar el `StandardScaler` usando la media y desviación estándar fijas aprendidas en Python.
-4. **Ejecutar la inferencia con aritmética `f32`:** Recorrer los árboles de decisión acumulando los márgenes replicando el comportamiento interno del motor de XGBoost (usar `f64` introducía divergencias en splits cercanos al umbral).
-5. **Calcular la probabilidad final:** Convertir el margen acumulado (sumado al `base_score` del modelo) a probabilidad mediante la función **sigmoide** y compararlo contra el umbral de negocio (`0.38`).
+   - Imputación numérica `strategy="mean"` y categórica `most_frequent`,
+     replicando los `SimpleImputer` ajustados en el train de Python.
+   - Encoding ordinal de income/education con flags `is_unknown`.
+   - One-Hot con el orden exacto de `get_feature_names_out()`.
+   - `StandardScaler` con media y escala del train.
+4. **Ejecutar la inferencia con aritmética `f32`:** réplica deliberada de la
+   aritmética interna de XGBoost (usar `f64` introducía divergencias en splits
+   cercanos al umbral).
+5. **Calcular la probabilidad final:** sigmoide sobre el margen acumulado más el
+   `base_score` del modelo, comparada contra el umbral que **declara el contrato**.
 
-### 🏗️ Decisiones de ingeniería clave
+### 🏗️ Decisiones de ingeniería — alcance declarado
 
-| Decisión | Justificación |
+| Decisión | Alcance real |
 |---|---|
-| **Parsing con `serde` + tipos estrictos** | Los nodos del árbol se modelan como `enum` (`Leaf` / `Split`) para eliminar estados inválidos en tiempo de compilación. |
-| **`Zero-allocation` en el hot-path** | La inferencia reutiliza buffers pre-asignados; no hay allocaciones durante el recorrido del árbol. |
-| **Fail-safe en el contrato** | Si el contrato tiene una versión incompatible, el módulo falla en la carga, no durante la inferencia. |
-| **Interop JS ↔ Rust** | Los features entran como `&[f32]` desde un `Float32Array` de JavaScript, evitando copias de memoria innecesarias. |
+| **Claves zero-copy** | Las claves del contrato se prestan (`Cow`/`&str`). **`predict_churn` parsea un DOM JSON por llamada**: el p50 está dominado por esa asignación, no por el traversal |
+| **Caché `OnceLock`** | Modelo y contrato se parsean una vez en `init_engine`. La inferencia no los re-parsea |
+| **Traversal sin asignaciones** | Cierto para el recorrido del árbol. No para la frontera JSON |
+| **Firewall de privacidad** | Rechaza campos prohibidos (`pan`, `cvv`, GPS…) antes de imputar |
+| **Gate de consentimiento** | `lib.rs:66` rechaza inferir sin consent cuando el contrato lo exige |
+| **Parsing con `serde`** | Los nodos se modelan como `enum` (`Leaf`/`Split`) para eliminar estados inválidos en compilación |
+
+> ⚠️ **Gap declarado:** el crate no valida la versión del contrato ni verifica el
+> `model_sha256` (`sha2` ausente de `Cargo.toml`). Cuatro campos del contrato son
+> opcionales con default apagado. Ver "Estado actual".
 
 ### 💡 Caso de estudio: por qué `f32` y no `f64`
 
@@ -502,11 +475,8 @@ acumulación de margin en f32
 margin final convertido a f64 para sigmoid
 ```
 
-Este detalle fue clave para lograr:
-
-```text
-max diff ≈ 7.31e-09
-```
+Este detalle fue clave para lograr la paridad. Medición histórica del linaje
+Lite: `max diff ≈ 7.31e-09`. El linaje IoT vigente alcanza **1.81e-11**.
 
 Lección aprendida: en sistemas de inferencia ML, la precisión numérica no es solo una cuestión de exactitud matemática, sino de replicación del comportamiento del framework original. Lo que es "más preciso" (f64) puede ser incorrecto si el modelo fue entrenado con f32.
 
@@ -537,9 +507,9 @@ La demo permite:
 ### Ejemplo de predicción
 
 ```text
-Probabilidad: 59.67%
-Threshold:    0.38
-Decisión:     ALTO RIESGO DE CHURN
+Probabilidad: 0.15%
+Threshold:    0.22
+Decisión:     SIN RIESGO DE CHURN
 ```
 
 ---
@@ -552,7 +522,7 @@ Este proyecto está configurado con **Dev Containers** (estándar de Microsoft/G
 1. Ve al repositorio en GitHub.
 2. Haz clic en el botón verde **`<> Code`**.
 3. Selecciona la pestaña **Codespaces** y haz clic en **"Create codespace on main"**.
-4. En menos de 2 minutos, tendrás un VS Code completo en tu navegador con Python 3.11, Rust, `uv` y `wasm-pack` preconfigurados y listos para usar.
+4. En menos de 2 minutos, tendrás un VS Code completo en tu navegador con Python 3.10, Rust, `uv` y `wasm-pack` preconfigurados y listos para usar.
 
 ### 💻 Opción B: VS Code Local
 1. Clona el repositorio y ábrelo en **Visual Studio Code**.
@@ -565,90 +535,35 @@ Este proyecto está configurado con **Dev Containers** (estándar de Microsoft/G
 
 ## 🚀 Quickstart
 
-### Requisitos
-
-```text
-Python 3.11+
-uv o pip
-Rust stable
-wasm-pack
-Navegador moderno
-```
-
-### 1. Instalar wasm-pack
+Requisitos: Python **3.10.11** (pineado por `uv.lock`), `uv`, Rust stable, `wasm-pack`.
 
 ```bash
-cargo install wasm-pack
-```
+# 1. Entorno fail-closed
+uv sync --frozen
 
-### 2. Ejecutar pipeline Python
+# 2. Cadena de producción (3 scripts + 1 gate bloqueante)
+uv run python run_all.py
+#    generate_synthetic_iot → gate z → train_edge_iot → export_edge_iot
 
-En Windows:
+# 3. Gates de verificación
+uv run python scripts/check_artifact_hashes.py     # 12 verificaciones
+uv run python scripts/check_contract_posture.py    # 4 controles armados
+uv run pytest tests/ -v                            # contrato + distribución z
 
-```bash
-uv run py run_all.py
-```
+# 4. Tests Rust
+cd edge/churn-wasm && cargo test -- --nocapture
 
-En Linux/macOS, si tienes `make` configurado:
-
-```bash
-make all
-```
-
-El pipeline ejecuta:
-
-```text
-1. train_model.py
-2. export_edge.py
-3. validate_parity.py
-4. train_edge_model.py
-5. export_edge_lite.py
-```
-
-### 3. Validar paridad RAW
-
-```bash
-uv run py scripts/validate_parity_raw.py
-```
-
-Esto genera:
-
-```text
-edge/raw_parity_case.json
-```
-
-### 4. Ejecutar tests Rust
-
-```bash
-cd edge/churn-wasm
-cargo test -- --nocapture
-```
-
-Test de paridad RAW:
-
-```bash
-cargo test --test parity_raw -- --nocapture
-```
-
-### 5. Compilar WASM
-
-```bash
-cd edge/churn-wasm
+# 5. Compilar WASM
 wasm-pack build --target web --release
+
+# 6. Demo local
+cd edge && python -m http.server 8000
 ```
 
-### 6. Levantar demo local
-
-```bash
-cd edge
-python -m http.server 8000
-```
-
-Abrir:
-
-```text
-http://localhost:8000
-```
+**Fuera de la cadena por defecto, a propósito:** `curate_raw.py` y
+`calibrate_iot_reference.py` reescriben evidencia trackeada. Un pipeline que
+regenera su propio grupo de control no tiene grupo de control. Se invocan
+explícitamente y su resultado se verifica por hash.
 
 ---
 
@@ -656,112 +571,88 @@ http://localhost:8000
 
 ```text
 churn-edge-ai/
-│
+├── .github/workflows/
+│   ├── ci.yml                          # python-gates + rust-wasm
+│   └── deploy-pages.yml                # sube ./edge completo
 ├── .gitignore
 ├── pyproject.toml
-├── README.md                                  # Contiene la sección "🗺️ Evolución del Proyecto"
-├── run_all.py                                 # Orquestador MLOps unificado
-├── Makefile
+├── uv.lock                             # pin fail-closed
+├── run_all.py                          # 3 scripts + gate z
+├── README.md · README.en.md
 │
 ├── data/
-│   ├── raw/
-│   │   └── Credit_card_churn.csv              # Origen Inmutable (Fase 1)
-│   ├── processed/                             # 🟢 (Fase 2) Datos listos para ML
-│   │   └── credit_card_churn_iot_synthetic.csv
-│   └── synthetic/                             # 🟢 (Fase 2) Trazabilidad y Auditoría
-│       └── iot_features_metadata.json         # 🛡️ Prueba de Cero Target Leakage
+│   ├── raw/Credit_card_churn.csv       # origen inmutable, grupo de control
+│   ├── curated/                        # SSOT + manifests + quarantine
+│   └── synthetic/iot_features_metadata.json
+│   # data/processed/ ignorado: derivado regenerable
 │
-├── model_artifacts/
-│   ├── xgb_model.joblib                       # (Fase 1) Baseline Full
-│   ├── xgb_model_edge.joblib                  # (Fase 1) Edge Lite
-│   ├── [scalers, imputers, configs...]        # (Fase 1)
-│   └── edge_iot/                              # 🟢 (Fase 2) Artefactos Edge IoT
-│       ├── xgb_model.joblib
-│       ├── scaler.joblib
-│       ├── model_config.joblib                # Incluye threshold óptimo (0.33)
-│       ├── num_imputer.joblib                 # 🟢 (Fase 3) Artefactos de preprocessing
-│       ├── cat_imputer.joblib
-│       ├── ordinal_imputer.joblib
-│       ├── onehot_encoder.joblib
-│       └── X_test_scaled_sample.csv
+├── docs/
+│   ├── adr/0004 · 0005 · 0006
+│   └── evidence/2026-11-audit-raw.{json,log}
+│
+├── model_artifacts/                    # ignorado por completo
+│   └── edge_iot/                       # binarios + metrics + provenance
 │
 ├── edge/
-│   ├── xgb_model.json                         # (Fase 1)
-│   ├── inference_contract.json                # (Fase 1)
-│   ├── xgb_model_edge.json                    # (Fase 1)
-│   ├── inference_contract_edge.json           # (Fase 1)
-│   ├── xgb_model_edge_iot.json                # 🟢 (Fase 2) Cerebro WASM (34 features)
-│   ├── inference_contract_edge_iot.json       # 🟢 (Fase 3) Contrato enriquecido v2
-│   ├── sample_scaled_edge_iot.npy             # 🟢 (Fase 2) Examen de Paridad
-│   ├── expected_proba_edge_iot.npy            # 🟢 (Fase 2) Respuestas Esperadas
-│   ├── parity_sample_edge_iot.json            # 🟢 (Fase 3) Paridad post-escalado (JSON)
-│   ├── raw_parity_case_iot.json               # 🟢 (Fase 3) Golden case RAW→proba
-│   ├── index.html                             # 🟢 (Fase 3) Demo dual (Operador + Cliente)
-│   ├── demo.js                                # 🟢 (Fase 3) Lógica WASM + Mock Bank + fallback
-│   └── churn-wasm/                            # 🟢 (Fase 3) Motor Rust completo
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs                         # Entry point + init_engine (OnceLock cache)
-│           ├── contract.rs                    # Parser de contratos (IoT + backward-compat)
-│           ├── preprocessing.rs               # Pipeline RAW→features (firewall + clipping)
-│           ├── model.rs                       # Parser de árboles XGBoost JSON
-│           └── inference.rs                   # Motor de inferencia (f32 + sigmoid)
+│   ├── xgb_model_edge_iot.json         # 34 features, 200 árboles
+│   ├── inference_contract_edge_iot.json# v2, byte-determinista
+│   ├── metrics_edge_iot.json           # justificación del threshold
+│   ├── export_manifest_edge_iot.json   # 7 hashes + procedencia (run_fingerprint, created_at)
+│   ├── parity_sample_edge_iot.json     # 100 × 34 f32
+│   ├── raw_parity_case_iot.json        # golden real, doble checkpoint
+│   ├── index.html · demo.js
+│   └── churn-wasm/
+│       ├── Cargo.toml · Cargo.lock
+│       ├── pkg/                        # WASM trackeado para Pages
+│       ├── src/{lib,contract,preprocessing,model,inference}.rs
+│       └── tests/{contract_live,parity_raw_iot}.rs
 │
-├── mock_bank/                                 # 🟢 (Fase 3) Backend simulado
-│   ├── main.py                                # FastAPI con 5 endpoints
-│   ├── requirements.txt                       # Dependencias (fastapi, uvicorn, pydantic)
-│   ├── __init__.py                            # Paquete Python
-│   └── README.md                              # Documentación de endpoints
-│
+├── mock_bank/
 ├── src/
-│   ├── config.py                              # (Actualizado: IOT_REFERENCE, Bounds)
-│   ├── data_loading.py                        # (Actualizado: with_iot=True)
-│   ├── preprocessing.py                       # (Actualizado: apply_iot_bounds)
-│   ├── train.py                               # (Actualizado: optimize_threshold)
-│   ├── synthetic_iot.py                       # 🟢 (Fase 2) Motor de Simulación
-│   └── export_edge.py
+│   ├── config.py                       # sin constantes de linajes retirados
+│   ├── data_contract.py                # contrato de ingestión v1.1.0
+│   ├── data_loading.py · preprocessing.py · train.py · synthetic_iot.py
 │
 ├── scripts/
-│   ├── train_model.py                         # (Fase 1)
-│   ├── export_edge.py                         # (Fase 1)
-│   ├── validate_parity.py                     # (Fase 1)
-│   ├── train_edge_model.py                    # (Fase 1)
-│   ├── export_edge_lite.py                    # (Fase 1)
-│   ├── generate_synthetic_iot.py              # 🟢 (Fase 2)
-│   ├── train_edge_iot_model.py                # 🟢 (Fase 2)
-│   ├── export_edge_iot.py                     # 🟢 (Fase 3) Contrato enriquecido v2
-│   └── validate_parity_raw_iot.py             # 🟢 (Fase 3) Genera golden case IoT
+│   ├── curate_raw.py · calibrate_iot_reference.py
+│   ├── generate_synthetic_iot.py
+│   ├── train_edge_iot_model.py · export_edge_iot.py
+│   ├── check_artifact_hashes.py · check_contract_posture.py
 │
-└── .github/workflows/ci.yml
+└── tests/
+    ├── test_data_contract.py           # rechaza el raw, acepta el curated
+    └── test_iot_z_distribution.py      # el síntoma tiene techo
 ```
 
 ---
 
 ## 📄 Contrato de inferencia
 
-El contrato de inferencia garantiza que Python, Rust y frontend interpreten el modelo exactamente igual.
-
-El contrato edge incluye:
+El contrato `inference_contract_edge_iot.json` (v2) incluye:
 
 ```text
-feature_order
-numeric_imputer
-categorical_imputer
-ordinal mappings
-one-hot categories
+feature_order · n_features
+numeric_imputer · categorical_imputer
+ordinal mappings + flags is_unknown
+one-hot categories (orden de get_feature_names_out)
 scaler mean/scale
 best_threshold
 xgboost base_score
+iot_features · iot_bounds
+forbidden_fields · consent_required
+model_sha256
 ```
 
-Esto evita problemas clásicos de despliegue:
+Esto evita problemas clásicos de despliegue: features desordenadas, categorías
+nuevas mal manejadas, escalado inconsistente, imputación distinta entre train y
+serving, threshold incorrecto, base score mal interpretado.
 
-- Features desordenadas.
-- Categorías nuevas mal manejadas.
-- Escalado inconsistente.
-- Imputación distinta entre train y serving.
-- Threshold incorrecto.
-- Base score mal interpretado.
+El contrato es **byte-determinista**: `created_at` vive en
+`export_manifest_edge_iot.json`, no acá. Dos exports consecutivos producen el
+mismo `sha256`.
+
+> ⚠️ El `model_sha256` viaja en el contrato; el motor todavía no lo verifica.
+> Gap declarado, con plan de cierre en la secuencia B → C → D.
 
 ---
 
@@ -769,16 +660,13 @@ Esto evita problemas clásicos de despliegue:
 
 | Comando | Descripción |
 |---|---|
-| `uv run py run_all.py` | Ejecuta pipeline completo en Windows |
-| `make all` | Ejecuta pipeline completo en Linux/macOS |
-| `uv run py scripts/train_model.py` | Entrena modelo full |
-| `uv run py scripts/export_edge.py` | Exporta modelo full a edge |
-| `uv run py scripts/validate_parity.py` | Valida paridad Python ↔ JSON |
-| `uv run py scripts/train_edge_model.py` | Entrena modelo edge |
-| `uv run py scripts/export_edge_lite.py` | Exporta modelo edge liviano |
-| `uv run py scripts/validate_parity_raw.py` | Genera golden file RAW |
-| `cargo test` | Ejecuta tests Rust |
-| `cargo test --test parity_raw` | Ejecuta paridad RAW Python ↔ Rust |
+| `uv run python run_all.py` | Cadena Edge IoT completa |
+| `uv run python scripts/curate_raw.py` | Curación forense R1–R5 (explícito) |
+| `uv run python scripts/calibrate_iot_reference.py` | Recalibra IOT_REFERENCE sobre train (explícito) |
+| `uv run python scripts/check_artifact_hashes.py` | Gate de integridad read-only (12 checks) |
+| `uv run python scripts/check_contract_posture.py` | Gate de postura (4 controles armados) |
+| `uv run pytest tests/ -v -s` | Contrato de datos + distribución z |
+| `cargo test` | Tests Rust: contrato vivo + paridad IoT + firewall |
 | `wasm-pack build --target web --release` | Compila WASM |
 | `python -m http.server 8000` | Sirve demo local |
 
@@ -786,184 +674,147 @@ Esto evita problemas clásicos de despliegue:
 
 ## ✅ Tests
 
-### Tests Python
-
-Los validadores principales son:
+### Python
 
 ```bash
-uv run py scripts/validate_parity.py
-uv run py scripts/validate_parity_raw.py
+uv run pytest tests/ -v -s
 ```
 
-El primero valida:
+| Test | Qué certifica |
+| --- | --- |
+| `test_data_contract.py::test_gate_rejects_mutated_origin` | El origen mutado falla con las 4 literales. **Es el grupo de control del audit** |
+| `test_data_contract.py::test_gate_accepts_curated_ssot` | Control positivo: sin él, un `validate()` que rechaza todo pasaría el test anterior |
+| `test_iot_z_distribution.py` | Imprime la tabla de z por feature y exige techo. El síntoma no puede regresar |
 
-```text
-Python/XGBoost ↔ JSON exportado
-```
-
-El segundo valida:
-
-```text
-Input crudo → preprocessing → probabilidad final
-Python ↔ Rust
-```
-
-### Tests Rust
+Más dos gates read-only, invocados por CI antes de instalar dependencias:
 
 ```bash
-cd edge/churn-wasm
-cargo test -- --nocapture
+python scripts/check_artifact_hashes.py     # 12 verificaciones: integridad · acuerdo · acoplamiento
+python scripts/check_contract_posture.py    # 4 controles presentes Y armados
 ```
 
-Incluye:
+### Rust
 
-- Sigmoid.
-- Error handling.
-- Lógica one-hot.
-- Conversión de base score.
-- Paridad RAW end-to-end.
+```bash
+cd edge/churn-wasm && cargo test -- --nocapture
+```
 
-Salida esperada del test de paridad RAW:
+11 tests: 7 unitarios (`contract`, `inference`, `lib`) + `contract_live` (1) +
+`parity_raw_iot` (3: paridad end-to-end, firewall de privacidad, caracterización
+del clipping silencioso).
+
+Salida esperada de la paridad IoT:
 
 ```text
-Python: 0.59665781
-Rust:   0.59665781
-diff:   7.31e-09
+🐍 Python (expected): 0.00150453
+🦀 Rust   (got):      0.00150453
+📉 Diff:              1.81e-11
+🏁 Resultado:         ✅ PASS
 ```
+
+Los tres asserts de consistencia (`threshold`, `n_features`, `n_trees`) **leen
+de los artefactos desplegados**, no de constantes del test.
 
 ---
 
 ## 🔄 CI/CD
 
-El proyecto está preparado para CI con GitHub Actions.
+`on: [push, pull_request]` — cobertura en todas las ramas.
 
-Objetivo del CI:
+**Job `python-gates`:** integridad y postura con Python del sistema (stdlib pura,
+fallan en 2 s), luego `uv sync --frozen`, gate de contrato de datos, regeneración
+de telemetría y gate de distribución z con la tabla impresa en el log.
 
-- Validar paridad Python ↔ JSON.
-- Validar paridad RAW Python ↔ Rust.
-- Ejecutar tests de Rust.
-- Compilar WASM.
-- Evitar regresiones numéricas.
-
-Workflow sugerido:
+**Job `rust-wasm`:** `cargo test` (todos los binaries) + `wasm-pack build`.
 
 ```yaml
 name: CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+on: [push, pull_request]
 
 jobs:
-  python-parity:
-    name: Python parity checks
+  python-gates:
+    name: Python gates (integridad · postura · contrato · IoT z)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Gate de integridad (read-only, 12 verificaciones)
+        run: python3 scripts/check_artifact_hashes.py
+
+      - name: Gate de postura del contrato (controles ARMADOS)
+        run: python3 scripts/check_contract_posture.py
+
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install numpy pandas xgboost joblib scikit-learn imbalanced-learn
+      - name: Sync dependencias (lockfile fail-closed)
+        run: uv sync --frozen
 
-      - name: Parity Python ↔ JSON
-        run: python scripts/validate_parity.py
+      - name: Gate de contrato de datos
+        run: uv run pytest tests/test_data_contract.py -v -s
 
-      - name: Parity RAW → proba
-        run: python scripts/validate_parity_raw.py
+      - name: Regenerar telemetría sintética
+        run: uv run python scripts/generate_synthetic_iot.py
+
+      - name: Gate de distribución z (tabla en el log)
+        run: uv run pytest tests/test_iot_z_distribution.py -s
 
   rust-wasm:
     name: Rust tests + WASM build
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
-
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
-
       - name: Cargo tests
         run: cd edge/churn-wasm && cargo test -- --nocapture
-
-      - name: RAW parity test
-        run: cd edge/churn-wasm && cargo test --test parity_raw -- --nocapture
-
       - name: Build WASM
         run: cd edge/churn-wasm && wasm-pack build --target web --release
 ```
+
+El job legacy `python-parity` se retiró en ADR-0006 junto con los scripts de
+Fase 1 que invocaba. Usaba Python 3.11 con `pip install` sin pines mientras el
+resto del repo respetaba `uv.lock` (3.10.11): dos intérpretes, un lockfile.
 
 ---
 
 ## 🧾 Artefactos generados
 
-Después del pipeline completo, se generan artefactos Python y edge.
-
-### Python artifacts
+### Locales, ignorados por git (derivados regenerables)
 
 ```text
-model_artifacts/
-    xgb_model.joblib
-    scaler.joblib
-    onehot_encoder.joblib
-    num_imputer.joblib
-    cat_imputer.joblib
-    ordinal_imputer.joblib
-    model_config.joblib
+model_artifacts/edge_iot/
+    xgb_model.joblib · scaler.joblib · onehot_encoder.joblib
+    num_imputer.joblib · cat_imputer.joblib · ordinal_imputer.joblib
+    ordinal_mappings.joblib · model_config.joblib
+    X_test_scaled_sample.csv · X_test_raw_sample.csv
+    sample_provenance.json · metrics.json
+
+data/processed/credit_card_churn_iot_synthetic.csv
+edge/*.npy
 ```
 
-### Edge artifacts full
-
-```text
-edge/
-    xgb_model.json
-    inference_contract.json
-    parity_sample.json
-    sample_scaled.npy
-    expected_proba.npy
-    expected_margin.npy
-```
-
-### Edge artifacts lite
+### Trackeados — fuente de verdad para Rust y para el auditor
 
 ```text
 edge/
-    xgb_model_edge.json
-    inference_contract_edge.json
-    parity_sample_edge.json
-    sample_scaled_edge.npy
-    expected_proba_edge.npy
-    expected_margin_edge.npy
-    raw_parity_case.json
+    xgb_model_edge_iot.json           34 features · 200 árboles
+    inference_contract_edge_iot.json  v2 · byte-determinista
+    metrics_edge_iot.json             AUC, matriz, criterio F2, caveats
+    export_manifest_edge_iot.json     7 hashes + procedencia (run_fingerprint, created_at)
+    parity_sample_edge_iot.json       100 × 34 f32
+    raw_parity_case_iot.json          golden real · doble checkpoint
+
+data/curated/                         SSOT + manifests + quarantine
+data/synthetic/iot_features_metadata.json
 ```
 
----
-
-## 🧠 Modelo Full vs Modelo Edge
-
-### Modelo Full
-
-- Máxima precisión.
-- Más features.
-- Más árboles.
-- Mayor peso.
-- Apto para backend, API o batch scoring.
-
-### Modelo Edge
-
-- Peso reducido.
-- Inferencia rápida.
-- Menor complejidad.
-- Compatible con navegador.
-- Caída controlada de performance.
-- Ideal para edge, demos interactivas y privacidad local.
+**Criterio:** un artefacto trackeado que depende de inputs ignorados es
+evidencia huérfana. Los `.joblib` se reconstruyen; los JSON de `edge/` y los
+manifests son el acta. Ver ADR-0004.
 
 ---
 
@@ -1015,7 +866,6 @@ Para llevar este sistema a producción, se recomienda:
 - AUC/F2 en ventanas móviles.
 - Estabilidad del threshold.
 - Diferencia entre predicción y resultado real.
-- Comparación periódica contra modelo full.
 
 ### MLOps
 
@@ -1035,7 +885,7 @@ Para llevar este sistema a producción, se recomienda:
 Verificar que Rust esté usando aritmética `f32` para:
 
 - Comparaciones de split.
-- Accumulación de margin.
+- Acumulación de margin.
 - Evaluación de árboles.
 
 ### `UnicodeEncodeError` en Windows
@@ -1085,66 +935,82 @@ o limpiar caché.
 
 ---
 
-## 🗺️ Evolución del Proyecto: De Churn Clásico a SDK Bancario IoT
+## 🗺️ Evolución del Proyecto
 
-Este repositorio documenta la construcción de un motor de inferencia determinista en el Edge. Lo que comenzó como un modelo de churn bancario tradicional (Hito 1), ha evolucionado hacia un SDK completo de IoT con contratos de privacidad criptográficos para la industria financiera.
+Este repositorio documenta la construcción de un motor de inferencia determinista en el Edge. Lo que comenzó como un modelo de churn bancario tradicional (Hito 1), ha evolucionado hacia un SDK completo de IoT con contratos de privacidad explícitos para la industria financiera.
 
-### 🏁 Hito 1: El Motor Determinista (Completado ✅)
-La base física y matemática del SDK ya está operativa y certificada.
-- [x] Entrenamiento de XGBoost con pipeline estricto anti-leakage.
-- [x] Optimización Edge (Reducción de peso en 72.1%, 12 features).
-- [x] Motor de inferencia en Rust / WebAssembly.
-- [x] Certificación de paridad matemática (Python ↔ JSON ↔ WASM) con diferencia máxima de `7.31e-09`.
-- [x] Inferencia 100% client-side (Zero-Trust / 0 bytes enviados al servidor).
+### 🏁 Hito 1 — Motor determinista (retirado, archivado)
+El baseline Full 28f y el Edge Lite 12f se retiraron en ADR-0006. No servían
+tráfico y descendían del archivo mutado. Recuperables desde el tag
+`baseline-fase3`. Su paridad histórica (7.31e-09) queda como medición de archivo.
 
-### 🌱 Hito 2: Telemetría IoT y Contratos de Privacidad (Completado ✅)
-- [x] Generador de datos sintéticos de IoT (Uso de apps, latencia en POS, fricción NFC).
-- [x] Entrenamiento de modelo híbrido (19 características bancarias + 6 IoT = 25 raw → 34 post-preprocessing).
-- [x] Esquema JSON del contrato de inferencia enriquecido v2 (Firewall de privacidad + IoT bounds).
+### 🌱 Hito 2 — Curación forense y SSOT (completado ✅)
+- [x] Contrato de ingestión fail-closed: dtype, unidades, identidad algebraica
+- [x] Curación R1–R5 con precondiciones de dominio re-verificadas por corrida
+- [x] Cuarentena MNAR sin imputar (131 filas, z = −3.10)
+- [x] Cadena de custodia: hashes de origen, script, contrato y salida
+- [x] Generador IoT con gate de soporte sobre la referencia fija
 
-### 🛡️ Hito 3: Núcleo Seguro en Rust (Completado ✅)
-- [x] Verificación de integridad de artefactos (SHA-256 embebido en contrato).
-- [x] Validación estricta del payload (Rechazo de campos prohibidos como CVV, GPS, PAN).
-- [x] Clipping automático de valores IoT fuera de rangos (bounds enforcement).
-- [x] Arquitectura `init_engine` con `OnceLock` (caché global zero-copy).
-- [x] Tests de integración end-to-end (paridad RAW→proba con tolerancia 1e-6).
-- [ ] Compilación multiplataforma (Android `.so`, iOS `.a`) — *pendiente*.
-- [ ] Benchmarking formal con `criterion.rs` — *pendiente*.
+### 🛡️ Hito 3 — Núcleo Rust (parcial 🚧)
+- [x] Firewall de privacidad: rechazo de campos prohibidos
+- [x] Gate de consentimiento (`lib.rs:66`)
+- [x] `init_engine` con `OnceLock`
+- [x] Paridad RAW→proba con doble checkpoint (1.81e-11)
+- [x] El contrato desplegado deserializa en Rust (`contract_live.rs`)
+- [ ] **Verificación de integridad SHA-256 en el motor** — `sha2` no está en
+      `Cargo.toml`. El hash viaja en el contrato; el motor todavía no lo comprueba
+- [ ] **Clipping con flag** — hoy clipea en silencio. Un input imposible
+      (`app_open = 9999`) produce una predicción plausible sin marcador
+- [ ] **Controles obligatorios en el esquema** — cuatro `#[serde(default)]`
+      dejan `forbidden_fields`, `iot_bounds`, `iot_features` y
+      `consent_required` apagados por omisión
+- [ ] Test Rust sobre las muestras escaladas
+- [ ] Compilación multiplataforma (Android `.so`, iOS `.a`)
+- [ ] Benchmarking formal con `criterion.rs`
 
-### 🔌 Hito 4: Integración en el Ecosistema B2B (Parcialmente Completado 🚧)
-- [x] `Mock Bank API` (FastAPI con 5 endpoints: health, features, consent POST/GET, clients).
-- [x] Gestión de consentimiento GDPR (registro + revocación + persistencia).
-- [x] Modo de inferencia *offline-first* (fallback embebido + localStorage).
-- [ ] SDK Web (NPM + Web Workers) — *pendiente*.
-- [ ] Envoltorios móviles (Kotlin/JNI y Swift/C-Bridge) — *pendiente*.
+### 🔌 Hito 4 — Ecosistema B2B (parcial 🚧)
+- [x] Mock Bank API con gestión de consentimiento
+- [x] Modo offline-first (fallback embebido + localStorage)
+- [ ] SDK Web (NPM + Web Workers)
+- [ ] Envoltorios móviles
 
-### 💼 Hito 5: UX Bancaria y Lógica de Negocio (Completado ✅)
-- [x] Interfaz dual: Vista Operador (consola técnica) + Vista Cliente (simulador app bancaria).
-- [x] Gestión explícita del consentimiento con lenguaje de beneficios ("futuros beneficios personalizados").
-- [x] Motor de decisiones de negocio: `proba > threshold ∧ consentimiento → oferta de cashback`.
-- [x] Regla de negocio implementada: "Si probabilidad > 33% y hay consentimiento → ofrecer $50 USD".
-- [ ] Panel de control (Dashboard) de observabilidad con preservación de privacidad — *pendiente*.
+## 💼 Hito 5 — UX bancaria (parcial 🚧)
+
+- [x] Interfaz dual: Vista Operador + Vista Cliente
+- [ ] **Política de retención fuera del motor** — `offer_retention` está
+      compilada en WASM (`lib.rs:84`). La decisión de negocio pertenece a la
+      capa de aplicación, no al binario de inferencia
+- [ ] Consentimiento explícito, visible y revocable — sin disfrazar de
+      banner de beneficios
+- [x] **Threshold dinámico desde el contrato** — el frontend lee `best_threshold`
+      de `inference_contract_edge_iot.json`, ningún test ni componente lo
+      hardcodea. Evidencia: sección "Threshold de negocio" y `edge/demo.js`
 
 ---
 
-## 🎯 Estado Actual del Proyecto (Noviembre 2026)
+## 🎯 Estado actual
 
-### ✅ Lo que está funcionando en producción:
-1. **Pipeline Python completo**: Entrenamiento → Optimización Edge → Exportación IoT → Validación de paridad.
-2. **Motor Rust/WASM**: Inferencia determinista con paridad certificada (max diff < 1e-8).
-3. **Contrato enriquecido v2**: Schema completo con imputers, ordinal, onehot, scaler, IoT bounds, forbidden fields.
-4. **Mock Bank API**: Backend simulado con gestión de consentimiento y endpoints RESTful.
-5. **Frontend dual**: Vista técnica (operador) + Vista comercial (cliente) con regla de negocio de retención.
-6. **Arquitectura zero-copy**: `init_engine` cachea modelo+contrato en `OnceLock`, inferencia < 1ms.
-7. **Fallback offline**: Funciona en GitHub Pages sin Mock Bank (features embebidas + localStorage).
+**Verificado y en producción:**
+- SSOT curada con contrato fail-closed y cadena de custodia por hash
+- Motor Rust/WASM con paridad RAW→proba de 1.81e-11
+- 12 verificaciones de integridad + 4 de postura en CI
+- Inferencia 100% client-side, 0 bytes al servidor
+- Demo dual en GitHub Pages con fallback offline
 
-### 🚧 Pendiente para producción real:
-- Compilación nativa para Android/iOS
-- Benchmarking formal con `criterion.rs`
-- Dashboard de observabilidad
-- SDK Web distribuible vía NPM
-- Firma criptográfica de contratos (Ed25519)
-- Integración con sistemas bancarios reales (no mock)
+**Gaps conocidos, declarados:**
+1. El motor no verifica el SHA-256 del modelo (`sha2` ausente del crate)
+2. Cuatro controles del contrato son opcionales con default permisivo
+3. El clipping IoT no emite flag: input imposible → predicción plausible
+4. Las 14 columnas bancarias no tienen bounds en inferencia
+5. `best_round` está en el techo del CV; el early-stopping es inerte sobre
+   una curva post-SMOTE monótona
+6. El golden vive en p ≈ 0.15%: tolera un error de logit ~166× mayor que uno
+   en la zona media
+7. SMOTE se aplica antes del CV: el AUC de validación es optimista.
+   **El número publicable es el de test**
+8. La política de retención está en el binario, no en la aplicación
+
+Los gaps 1–4 tienen plan de cierre en la secuencia B → C → D.
 
 ---
 
@@ -1162,6 +1028,8 @@ wasm-pack
 WebAssembly
 JavaScript vanilla
 GitHub Actions
+Uv
+Pytest
 ```
 
 Reproducibilidad:

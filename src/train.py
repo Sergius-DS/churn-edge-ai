@@ -3,6 +3,9 @@ src/train.py
 ────────────
 Entrenamiento XGBoost con CV, evaluación en test,
 optimización de threshold y guardado de artefactos.
+
+Los hiperparámetros son obligatorios en todas las funciones públicas:
+ningún default puede apuntar a un linaje retirado (ADR-0006).
 """
 
 import numpy as np
@@ -22,18 +25,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
 
+# ← CAMBIO: 8 imports fuera. Cinco eran defaults de funciones que ahora
+#   exigen el valor explícito; tres (XGB_EDGE_PARAMS, EDGE_CV_NUM_BOOST_ROUND,
+#   EDGE_EARLY_STOPPING_ROUNDS) estaban importados y nunca se usaron en el cuerpo.
 from src.config import (
     SEED,
     TARGET,
-    XGB_PARAMS,
-    XGB_EDGE_PARAMS,
-    CV_NUM_BOOST_ROUND,
     CV_NFOLD,
-    CV_EARLY_STOPPING_ROUNDS,
-    EDGE_CV_NUM_BOOST_ROUND,
-    EDGE_EARLY_STOPPING_ROUNDS,
-    BEST_THRESHOLD,
-    ARTIFACTS_DIR,
     INCOME_ORDER,
     EDUCATION_ORDER,
 )
@@ -42,18 +40,18 @@ from src.config import (
 def train_with_cv(
     X_train_scaled: pd.DataFrame,
     y_train_smote: pd.Series,
-    params: dict = None,
-    num_boost_round: int = None,
-    early_stopping_rounds: int = None,
+    params: dict,
+    num_boost_round: int,
+    early_stopping_rounds: int,
 ) -> tuple[xgb.Booster, int, float]:
     """
     Entrena XGBoost con cross-validation.
-    Permite usar XGB_PARAMS (baseline) o XGB_EDGE_PARAMS (edge/iot).
-    """
-    params = params or XGB_PARAMS
-    num_boost_round = num_boost_round or CV_NUM_BOOST_ROUND
-    early_stopping_rounds = early_stopping_rounds or CV_EARLY_STOPPING_ROUNDS
 
+    Los hiperparámetros son obligatorios: ningún default puede apuntar
+    a un linaje retirado. El caller (train_edge_iot_model.py) pasa
+    XGB_EDGE_PARAMS, EDGE_CV_NUM_BOOST_ROUND y EDGE_EARLY_STOPPING_ROUNDS
+    explícitamente.
+    """
     dtrain = xgb.DMatrix(X_train_scaled, label=y_train_smote)
 
     cv_results = xgb.cv(
@@ -91,9 +89,10 @@ def evaluate_on_test(
     model: xgb.Booster,
     X_test_scaled: pd.DataFrame,
     y_test: pd.Series,
-    threshold: float = BEST_THRESHOLD,
+    threshold: float,
 ) -> dict:
-    """Evalúa el modelo en test con el threshold de negocio."""
+    """Evalúa el modelo en test con el threshold provisto por el caller.
+    El umbral vive en model_config.joblib y se justifica en metrics.json."""
     dtest = xgb.DMatrix(X_test_scaled, label=y_test)
     y_pred_prob = model.predict(dtest)
 
@@ -124,15 +123,15 @@ def optimize_threshold(
     X_train_ready: pd.DataFrame,
     y_train: pd.Series,
     best_round: int,
+    params: dict,
     seed: int = SEED,
-    params: dict = None,
 ) -> float:
     """
     Optimiza threshold usando split interno de train.
     Usa X_train_ready antes de SMOTE para evitar leakage.
+    El modelo interno reutiliza best_round del CV exterior (sesgo leve,
+    documentado en metrics.json → best_round_caveat).
     """
-    params = params or XGB_PARAMS
-
     X_tr_inner, X_val_inner, y_tr_inner, y_val_inner = train_test_split(
         X_train_ready,
         y_train,
@@ -198,13 +197,13 @@ def save_artifacts(
     cat_imputer,
     ordinal_imputer,
     threshold: float,
+    artifact_dir: Path,
     seed: int = SEED,
     feature_order: list = None,
-    artifact_dir: Path = ARTIFACTS_DIR,
 ) -> None:
     """
-    Guarda todos los artefactos del modelo.
-    artifact_dir permite guardar en carpetas separadas (baseline, edge, edge_iot).
+    Guarda todos los artefactos del modelo en artifact_dir (obligatorio).
+    El único directorio vivo es EDGE_IOT_ARTIFACTS_DIR.
     """
     artifact_dir = Path(artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
