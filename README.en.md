@@ -107,7 +107,7 @@ For use cases where privacy, marginal cost, and speed matter, sending raw data t
 │                inference_contract_edge_iot.json   (v2, byte-deterministic)   │
 │                metrics_edge_iot.json              (justifies the threshold)  │
 │                parity_sample_edge_iot.json · raw_parity_case_iot.json        │
-│                export_manifest_edge_iot.json      (7 hashes + provenance)    │
+│                export_manifest_edge_iot.json      (8 hashes + provenance)    │
 │                                                                              │
 └─────────────────────────────────────┬────────────────────────────────────────┘
                                       ▼
@@ -389,9 +389,10 @@ in `metrics_edge_iot.json`.
 | Layer | What it compares | Where | Max diff |
 | --- | --- | --- | --- |
 | 1 | Contract replica ≡ sklearn pipeline | `export_edge_iot.py` · Checkpoint 3 | **0.000e+00** |
-| 2 | RAW → preprocessing → trees → proba, Python ↔ Rust | `tests/parity_raw_iot.rs` | **1.81e-11** |
+| 2a | RAW → preprocessing → trees → probability (typical golden case, p≈0.15%) | tests/parity_raw_iot.rs::iot_raw_input_parity_with_python | **1.81e-11** |
+| 2b | RAW → preprocessing → trees → probability (sensitive golden case, p≈47.44%) | tests/parity_raw_iot.rs::iot_sensitive_golden_parity | **1.02e-9** |
 | 3 | The deployed contract deserializes in Rust | `tests/contract_live.rs` | pass/fail |
-| 4 | Artifact integrity vs manifests | `check_artifact_hashes.py` | 12 checks |
+| 4 | Artifact integrity vs manifests | `check_artifact_hashes.py` | 13 checks |
 | 5 | Contract controls present **and armed** | `check_contract_posture.py` | 4 controls |
 
 Layer 1 is the one that closes the intermediate link: without it, the replica
@@ -404,6 +405,18 @@ and tolerance declared in the file itself. Satisfies INV-1 and INV-2.
 
 Pending: Rust test over the 100 scaled samples in
 `parity_sample_edge_iot.json` (gap 3).
+
+**Sensitive golden:** second fixture, selected by argmax p(1−p) across the 100 samples
+(sample_index=6, p=47.4406%, sensitivity 0.2493 — 99.7% of the theoretical
+maximum). With `proba_abs=1e-6`, it tolerates a logit error of **4.01e-6** vs
+the typical's **6.65e-4**: **166× stricter**. The fixture declares its own
+floor (`sensitivity_floor=0.15`) and its own tolerance; the Rust test reads
+them from there, not from constants. Both goldens carry an embedded
+`run_fingerprint` and the test verifies they belong to the same run.
+
+Row 6 falls within the 10 rows already certified by Checkpoint 3
+(`Réplica≡sklearn`, `max|Δ|=0.000e+00`): the sensitive golden inherits that
+equivalence with no additional code.
 
 ---
 
@@ -552,7 +565,7 @@ uv run python run_all.py
 #    generate_synthetic_iot → z gate → train_edge_iot → export_edge_iot
 
 # 3. Verification gates
-uv run python scripts/check_artifact_hashes.py     # 12 checks
+uv run python scripts/check_artifact_hashes.py     # 13 checks
 uv run python scripts/check_contract_posture.py    # 4 armed controls
 uv run pytest tests/ -v                            # contract + z distribution
 
@@ -603,9 +616,10 @@ churn-edge-ai/
 │   ├── xgb_model_edge_iot.json         # 34 features, 200 trees
 │   ├── inference_contract_edge_iot.json# v2, byte-deterministic
 │   ├── metrics_edge_iot.json           # threshold justification
-│   ├── export_manifest_edge_iot.json   # 7 hashes + provenance (run_fingerprint, created_at)
+│   ├── export_manifest_edge_iot.json   # 8 hashes + provenance (run_fingerprint, created_at)
 │   ├── parity_sample_edge_iot.json     # 100 × 34 f32
 │   ├── raw_parity_case_iot.json        # real golden case, double checkpoint
+│   ├── raw_parity_case_iot_sensitive.json # maximum-sensitivity golden (k=6)
 │   ├── index.html · demo.js
 │   └── churn-wasm/
 │       ├── Cargo.toml · Cargo.lock
@@ -669,7 +683,7 @@ same `sha256`.
 | `uv run python run_all.py` | Full Edge IoT chain |
 | `uv run python scripts/curate_raw.py` | Forensic curation R1–R5 (explicit) |
 | `uv run python scripts/calibrate_iot_reference.py` | Recalibrates IOT_REFERENCE on train (explicit) |
-| `uv run python scripts/check_artifact_hashes.py` | Read-only integrity gate (12 checks) |
+| `uv run python scripts/check_artifact_hashes.py` | Read-only integrity gate (13 checks) |
 | `uv run python scripts/check_contract_posture.py` | Posture gate (4 armed controls) |
 | `uv run pytest tests/ -v -s` | Data contract + z distribution |
 | `cargo test` | Rust tests: live contract + IoT parity + firewall |
@@ -695,7 +709,7 @@ uv run pytest tests/ -v -s
 Plus two read-only gates, invoked by CI before installing dependencies:
 
 ```bash
-python scripts/check_artifact_hashes.py     # 12 checks: integrity · agreement · coupling
+python scripts/check_artifact_hashes.py     # 13 checks: integrity · agreement · coupling
 python scripts/check_contract_posture.py    # 4 controls present AND armed
 ```
 
@@ -705,9 +719,8 @@ python scripts/check_contract_posture.py    # 4 controls present AND armed
 cd edge/churn-wasm && cargo test -- --nocapture
 ```
 
-11 tests: 7 unit tests (`contract`, `inference`, `lib`) + `contract_live` (1) +
-`parity_raw_iot` (3: end-to-end parity, privacy firewall, characterization of
-silent clipping).
+12 tests: 7 unit tests (`contract`, `inference`, `lib`) + `contract_live` (1) +
+`parity_raw_iot` (4: end-to-end parity, privacy firewall, silent clipping characterization, sensitive golden).
 
 Expected output of the IoT parity test (verbatim):
 
@@ -745,7 +758,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Gate de integridad (read-only, 12 verificaciones)
+      - name: Gate de integridad (read-only, 13 verificaciones)
         run: python3 scripts/check_artifact_hashes.py
 
       - name: Gate de postura del contrato (controles ARMADOS)
@@ -810,9 +823,10 @@ edge/
     xgb_model_edge_iot.json           34 features · 200 trees
     inference_contract_edge_iot.json  v2 · byte-deterministic
     metrics_edge_iot.json             AUC, matrix, F2 criterion, caveats
-    export_manifest_edge_iot.json     7 hashes + provenance (run_fingerprint, created_at)
+    export_manifest_edge_iot.json     8 hashes + provenance (run_fingerprint, created_at)
     parity_sample_edge_iot.json       100 × 34 f32
     raw_parity_case_iot.json          real golden case · double checkpoint
+    raw_parity_case_iot_sensitive.json sensitive golden · p=47.44% · sens=0.2493
 
 data/curated/                         SSOT + manifests + quarantine
 data/synthetic/iot_features_metadata.json
@@ -1007,11 +1021,17 @@ measurement.
 1. The engine does not verify the model's SHA-256 (`sha2` absent from the crate)
 2. Four contract controls are optional with a permissive default
 3. IoT clipping emits no flag: impossible input → plausible prediction
-4. The 14 banking columns have no bounds at inference time
-5. `best_round` is at the CV ceiling; early-stopping is inert on a monotonic
-   post-SMOTE curve
-6. The golden case lives at p ≈ 0.15%: it tolerates a logit error ~166× larger
-   than one in the mid-range
+4. The 14 **numeric** banking columns have no bounds at inference time
+5. `best_round` is at the CV ceiling; early stopping is inert on a monotonic
+post-SMOTE curve. **Declared, not closed:** `metrics_edge_iot.json` carries
+`best_round_at_cap=true`, `cv_num_boost_round_cap=200`, and
+`early_stopping_caveat`. Raising the ceiling does not find an optimum — it
+moves the boundary. The real fix (intra-fold SMOTE) goes on a separate branch.
+
+6. ~~The golden lives at p ≈ 0.15%: it tolerates a logit error ~166× larger
+than one in the middle zone.~~ **Closed:** second golden at `p=47.4406%`
+(sensitivity `0.2493`), logit tolerance `4.01e-6`, with its own Rust test
+(`iot_sensitive_golden_parity`). The typical is kept as the common case.
 7. SMOTE is applied before CV: validation AUC is optimistic.
    **The publishable number is the test-set one**
 8. The retention policy is in the binary, not in the application

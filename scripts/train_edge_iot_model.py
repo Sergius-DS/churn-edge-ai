@@ -127,31 +127,38 @@ def main() -> None:
     #    solo en el scrollback de una terminal ──
 
     metrics_payload = {
-        "best_round": int(best_round),
-        "best_auc_cv": float(best_auc_cv),
-        "cv_caveat": (
-            "CV sobre datos post-SMOTE: AUC de validación optimista. "
-            "El número publicable es test_auc."
-        ),
-        "test_auc": float(metrics["test_auc"]),
-        "threshold": float(threshold),
-        "threshold_criterion": "F2 sobre split interno de train (pre-SMOTE)",
-        "confusion_matrix": metrics["confusion_matrix"].tolist(),
-        "tp": int(metrics["tp"]),
-        "fn": int(metrics["fn"]),
-        "fp": int(metrics["fp"]),
-        "tn": int(metrics["tn"]),
-        "training_dataset_sha256": dataset_hash,   # Fix #12
-        "run_fingerprint": fp,                      # Fix #12
-        "best_round_caveat": (                      # Fix #12
-            "best_round proviene del CV exterior (post-SMOTE); "
-            "el modelo interno del threshold lo reutiliza. Sesgo leve, documentado."
-        ),
-        "n_train": int(len(X_train)),
-        "n_test": int(len(X_test)),
-        "n_features": len(feature_order),
-        "contract_report": artifacts.get("contract_report", {}),
-        "feature_importance_gain": importance.to_dict(orient="records"),
+    "best_round": int(best_round),
+    "best_round_at_cap": bool(best_round >= EDGE_CV_NUM_BOOST_ROUND),
+    "cv_num_boost_round_cap": int(EDGE_CV_NUM_BOOST_ROUND),
+    "early_stopping_caveat": (
+        f"early_stopping_rounds={EDGE_EARLY_STOPPING_ROUNDS} es estructuralmente "
+        f"inerte sobre esta curva: el CV post-SMOTE es monotono, el contador se "
+        f"resetea en cada iteracion y el unico terminator es num_boost_round."
+    ),
+    "best_auc_cv": float(best_auc_cv),
+    "cv_caveat": (
+        "CV sobre datos post-SMOTE: AUC de validación optimista. "
+        "El número publicable es test_auc."
+    ),
+    "test_auc": float(metrics["test_auc"]),
+    "threshold": float(threshold),
+    "threshold_criterion": "F2 sobre split interno de train (pre-SMOTE)",
+    "confusion_matrix": metrics["confusion_matrix"].tolist(),
+    "tp": int(metrics["tp"]),
+    "fn": int(metrics["fn"]),
+    "fp": int(metrics["fp"]),
+    "tn": int(metrics["tn"]),
+    "training_dataset_sha256": dataset_hash,   # Fix #12
+    "run_fingerprint": fp,                      # Fix #12
+    "best_round_caveat": (                      # Fix #12
+        "best_round proviene del CV exterior (post-SMOTE); "
+        "el modelo interno del threshold lo reutiliza. Sesgo leve, documentado."
+    ),
+    "n_train": int(len(X_train)),
+    "n_test": int(len(X_test)),
+    "n_features": len(feature_order),
+    "contract_report": artifacts.get("contract_report", {}),
+    "feature_importance_gain": importance.to_dict(orient="records"),
     }
     (EDGE_IOT_ARTIFACTS_DIR / "metrics.json").write_text(
         _json.dumps(metrics_payload, indent=2, ensure_ascii=False),

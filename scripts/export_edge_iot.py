@@ -11,6 +11,7 @@ Genera:
     edge/expected_proba_edge_iot.npy
     edge/parity_sample_edge_iot.json            ← Para demo.js
     edge/raw_parity_case_iot.json               ← Para tests/parity_raw_iot.rs
+    edge/raw_parity_case_iot_sensitive.json     ← Para tests/parity_raw_iot.rs (golden sensible)
 """
 
 import json
@@ -35,6 +36,7 @@ from src.config import (
     EDUCATION_ORDER,
     SEED,
     SYNTHETIC_IOT_CSV,
+    SENSITIVITY_FLOOR,
 )
 from src.train import run_fingerprint
 
@@ -131,6 +133,22 @@ def preprocess_raw_case(raw: dict, contract: dict) -> np.ndarray:
     return (np.array(feats, dtype=np.float64) - mean) / scale
 
 
+def _row_to_raw(row: dict) -> dict:
+    """Series mixta -> dict JSON-safe. Escalares numpy -> natives de Python."""
+    return {c: (None if pd.isna(v) else (v.item() if hasattr(v, "item") else v))
+            for c, v in row.items()}
+
+
+def _assert_golden_identities(raw: dict, label: str) -> None:
+    """Un golden debe cumplir las identidades algebraicas del contrato de datos."""
+    otb = raw["Credit_Limit"] - raw["Total_Revolving_Bal"]
+    assert abs(raw["Avg_Open_To_Buy"] - otb) < 0.01, (
+        f"{label} viola INV-1: Open_To_Buy={raw['Avg_Open_To_Buy']} vs {otb}")
+    util = round(raw["Total_Revolving_Bal"] / raw["Credit_Limit"], 3)
+    assert abs(raw["Avg_Utilization_Ratio"] - util) < 0.0011, (
+        f"{label} viola INV-2: Utilization={raw['Avg_Utilization_Ratio']} vs {util}")
+
+
 def main() -> None:
     print("=" * 70)
     print("📦 Exportando modelo Edge IoT (contrato enriquecido v2)")
@@ -192,6 +210,27 @@ def main() -> None:
             "Re-ejecutar train_edge_iot_model.py."
         )
     print(f"[export_edge_iot] ✅ Linaje del sample verificado ({fp[:16]})")
+
+    # ── Muestra de paridad: lectura + predict. No escribe nada trackeado. ──
+    sample = pd.read_csv(sample_path)
+    sample = sample[feature_order]
+    X_sample = sample.values.astype(np.float32)
+    dmat_sample = xgb.DMatrix(X_sample, feature_names=feature_order)
+    expected_proba = model.predict(dmat_sample)
+
+    # ── Gate de viabilidad del golden sensible ──
+    # dp/dlogit = p(1-p). Sin una fila en p~[0.184, 0.816] el fixture no aporta
+    # poder de deteccion sobre el tipico. Aborta antes de publicar nada.
+    sens = expected_proba * (1.0 - expected_proba)
+    k_star = int(np.argmax(sens))
+    sens_val = float(sens[k_star])
+    if sens_val < SENSITIVITY_FLOOR:
+        raise ValueError(
+            f"Golden sensible: sensibilidad maxima {sens_val:.4f} < {SENSITIVITY_FLOOR}. "
+            "Ninguna fila de la muestra cae en p~[0.184, 0.816]. No bajar el piso: "
+            "ampliar PARITY_SAMPLE_SIZE o seleccionar del test completo, con decision declarada.")
+    print(f"[export_edge_iot] ✅ Golden sensible viable: k={k_star}, "
+          f"p={float(expected_proba[k_star]):.6f}, sens={sens_val:.4f}")
     
     # ── Publicar métricas: el umbral del contrato necesita su justificación trackeada ──
     # model_artifacts/ está ignorado por git. Un metrics.json que vive ahí no es
@@ -228,15 +267,7 @@ def main() -> None:
     print(f"[export_edge_iot] ✅ Modelo → {EDGE_IOT_MODEL_JSON}")
     model_sha256 = sha256_file(EDGE_IOT_MODEL_JSON)
 
-    # ── Muestra de paridad (escalada) ──
-    sample = pd.read_csv(sample_path)
-    sample = sample[feature_order]
-
-    X_sample = sample.values.astype(np.float32)
-
-    dmat_sample = xgb.DMatrix(X_sample, feature_names=feature_order)
-    expected_proba = model.predict(dmat_sample)
-
+    # ── Guardar .npy (no trackeados por git) ──
     np.save(EDGE_DIR / "sample_scaled_edge_iot.npy", X_sample)
     np.save(EDGE_DIR / "expected_proba_edge_iot.npy", expected_proba)
     print(f"[export_edge_iot] ✅ Paridad escalada: {X_sample.shape[0]} muestras")
@@ -441,30 +472,8 @@ def main() -> None:
 
     # Extraer solo las columnas que el contrato espera como input raw
     raw_cols = raw_numeric_columns + raw_categorical_columns
-    RAW_IOT_INPUT = {}
-    for c in raw_cols:
-        val = golden_row[c]
-        if hasattr(val, "item"):
-            RAW_IOT_INPUT[c] = val.item()
-        else:
-            RAW_IOT_INPUT[c] = val
-
-    # El golden DEBE cumplir las identidades algebraicas del contrato.
-    assert abs(
-        RAW_IOT_INPUT["Avg_Open_To_Buy"]
-        - (RAW_IOT_INPUT["Credit_Limit"] - RAW_IOT_INPUT["Total_Revolving_Bal"])
-    ) < 0.01, (
-        f"Golden viola INV-1: Open_To_Buy={RAW_IOT_INPUT['Avg_Open_To_Buy']} "
-        f"pero Limit-Revolving="
-        f"{RAW_IOT_INPUT['Credit_Limit'] - RAW_IOT_INPUT['Total_Revolving_Bal']}"
-    )
-    rebuilt_util = round(
-        RAW_IOT_INPUT["Total_Revolving_Bal"] / RAW_IOT_INPUT["Credit_Limit"], 3
-    )
-    assert abs(RAW_IOT_INPUT["Avg_Utilization_Ratio"] - rebuilt_util) < 0.0011, (
-        f"Golden viola INV-2: Utilización={RAW_IOT_INPUT['Avg_Utilization_Ratio']} "
-        f"pero Reconstruida={rebuilt_util}"
-    )
+    RAW_IOT_INPUT = _row_to_raw(golden_row[raw_cols].to_dict())
+    _assert_golden_identities(RAW_IOT_INPUT, "Golden tipico")
 
     scaled_raw = preprocess_raw_case(RAW_IOT_INPUT, contract)
     scaled_raw_f32 = scaled_raw.astype(np.float32)     # ← Fix C3: alinear con XGBoost
@@ -480,6 +489,7 @@ def main() -> None:
             "Rust debe replicar el preprocessing completo."
         ),
         "source_clientnum": int(golden_row["CLIENTNUM"]),
+        "run_fingerprint": fp,
         "raw": RAW_IOT_INPUT,
         "expected_scaled": scaled_raw_f32.tolist(),    # ← f32 (consistente)
         "scaled_dtype": "float32",                     # ← Fix C3: declarado
@@ -499,6 +509,36 @@ def main() -> None:
     print(f"[export_edge_iot] ✅ Raw parity case → {raw_parity_path}")
     print(f"[export_edge_iot]    Proba esperada: {raw_proba * 100:.4f}%")
 
+    # ── Golden de maxima sensibilidad: fixture en k_star (gate ya corrido arriba) ──
+    g2_raw = _row_to_raw(raw_sample.iloc[k_star].to_dict())
+    _assert_golden_identities(g2_raw, f"Golden sensible (sample_index={k_star})")
+    g2_scaled = preprocess_raw_case(g2_raw, contract).astype(np.float32)
+    g2_proba = float(model.predict(
+        xgb.DMatrix(g2_scaled.reshape(1, -1), feature_names=feature_order))[0])
+    # Invariante cruzada: misma fila, mismo pipeline f32 -> misma proba que
+    # parity_sample[k_star]. Ata los dos fixtures entre si, no solo al manifest.
+    assert abs(g2_proba - float(expected_proba[k_star])) < 1e-12, (
+        f"Golden sensible {g2_proba} != parity_sample[{k_star}] "
+        f"{float(expected_proba[k_star])}: dos caminos f32 divergen")
+    sensitive_path = EDGE_DIR / "raw_parity_case_iot_sensitive.json"
+    sensitive_path.write_text(json.dumps({
+        "description": "Golden de maxima sensibilidad: argmax p(1-p) sobre la muestra. "
+                       "Complementa al tipico, insensible en p~0.",
+        "run_fingerprint": fp,
+        "sample_index": k_star,
+        "row_identity": "run_fingerprint + sample_index (X_test no incluye CLIENTNUM)",
+        "raw": g2_raw,
+        "expected_scaled": g2_scaled.tolist(),
+        "scaled_dtype": "float32",
+        "parity_tolerance": {"scaled_abs": 1e-5, "proba_abs": 1e-6},
+        "sensitivity_p_1mp": sens_val,
+        "sensitivity_floor": SENSITIVITY_FLOOR,
+        "expected_proba": g2_proba,
+        "expected_proba_pct": g2_proba * 100.0,
+    }, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"[export_edge_iot] ✅ Golden sensible → p={g2_proba:.4%} "
+          f"(sens={sens_val:.4f}, k={k_star})")
+
     # ── Export manifest (Fix C4: procedencia volcada fuera del contrato) ──
     export_manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -509,6 +549,7 @@ def main() -> None:
         "contract_sha256": sha256_file(EDGE_IOT_CONTRACT_JSON),
         "parity_sample_sha256": sha256_file(parity_sample_path),
         "raw_parity_sha256": sha256_file(raw_parity_path),
+        "raw_parity_sensitive_sha256": sha256_file(sensitive_path),
         "metrics_sha256": sha256_file(metrics_pub),
         "volatile_fields_relocated": ["created_at"],
     }

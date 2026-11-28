@@ -215,3 +215,42 @@ fn iot_out_of_bounds_is_silently_clipped_characterization() {
     println!("✅ CHARACTERIZATION: clipping silencioso funcionó. Proba con out-of-bounds input: {:.4}%", proba * 100.0);
     println!("   ⚠️  Este comportamiento es el DEFECTO. Ver docstring del test.");
 }
+/// Paridad sobre el golden de máxima sensibilidad. El típico (p~0.0015)
+/// tolera un error de logit 166× mayor; este fixture cierra esa holgura.
+#[test]
+fn iot_sensitive_golden_parity() {
+    let case_json = fs::read_to_string("../../edge/raw_parity_case_iot_sensitive.json")
+        .expect("Falta raw_parity_case_iot_sensitive.json — re-ejecutar export_edge_iot.py");
+    let case: serde_json::Value = serde_json::from_str(&case_json).unwrap();
+    
+    let sens = case["sensitivity_p_1mp"].as_f64()
+        .expect("golden sensible sin sensitivity_p_1mp");
+    let floor = case["sensitivity_floor"].as_f64()
+        .expect("golden sensible sin sensitivity_floor");
+    assert!(sens >= floor, "sensibilidad {sens} < piso declarado {floor}");
+    
+    let tol = case["parity_tolerance"]["proba_abs"].as_f64()
+        .expect("golden sensible sin parity_tolerance.proba_abs");
+    
+    // Los dos goldens deben ser del mismo run (ancla embebida, no manifest).
+    let typical: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string("../../edge/raw_parity_case_iot.json").unwrap()).unwrap();
+    let fp_s = case["run_fingerprint"].as_str().expect("sensible sin run_fingerprint");
+    let fp_t = typical["run_fingerprint"].as_str().expect("tipico sin run_fingerprint");
+    assert_eq!(fp_s, fp_t, "los dos goldens deben pertenecer al mismo run");
+    
+    let expected = case["expected_proba"].as_f64().unwrap();
+    let raw = case["raw"].to_string();
+    let model_json = fs::read_to_string("../../edge/xgb_model_edge_iot.json").unwrap();
+    let contract_json = fs::read_to_string("../../edge/inference_contract_edge_iot.json").unwrap();
+    churn_wasm::init_engine(&model_json, &contract_json).expect("init");
+    
+    let out = churn_wasm::predict_churn(&raw, true);
+    let res: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert!(!res.as_object().unwrap().contains_key("error"), "predict_churn falló: {out}");
+    
+    let got = res["probability"].as_f64().unwrap();
+    let diff = (got - expected).abs();
+    println!("sensible: p={expected:.8} rust={got:.8} diff={diff:.2e} sens={sens:.4}");
+    assert!(diff < tol, "PARIDAD SENSIBLE FALLÓ: diff={diff:.2e} tol={tol:.2e}");
+}
