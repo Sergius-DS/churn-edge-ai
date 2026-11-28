@@ -1,16 +1,16 @@
 // src/contract.rs
 // Parser del contrato de inferencia exportado por Python.
-// Soporta tanto edge_lite (12 features) como edge_iot (34 features + IoT).
 
 use serde::Deserialize;
 use std::collections::HashMap;
 
 /// Contrato completo de inferencia.
-/// Los campos IoT son opcionales para mantener backward-compatibility
-/// con el contrato edge_lite.
+/// Todos los campos son obligatorios — los cuatro controles IoT dejaron de
+/// ser opcionales en C3. Un contrato sin firewall, bounds, features IoT o
+/// gate de consentimiento se rechaza en el parse, no en runtime.
 #[derive(Debug, Deserialize)]
 pub struct InferenceContract {
-    // ── Campos base (presentes en edge_lite y edge_iot) ──
+    // ── Campos base ──
     pub version: u32,
     pub best_threshold: f64,
     pub feature_order: Vec<String>,
@@ -20,22 +20,18 @@ pub struct InferenceContract {
     pub onehot: OneHotConfig,
     pub scaler: ScalerConfig,
 
-    // ── Campos IoT (opcionales, solo en edge_iot) ──
-    /// Lista de features IoT que el modelo espera
-    #[serde(default)]
+    // ── Controles IoT (obligatorios desde C3) ──
+    /// Lista de features IoT que el modelo espera.
     pub iot_features: Vec<String>,
 
     /// Rangos de validación para features IoT: feature -> [min, max]
-    /// En JSON son arrays [lo, hi], parseados como Vec<f64> de 2 elementos
-    #[serde(default)]
+    /// En JSON son arrays [lo, hi], parseados como Vec<f64> de 2 elementos.
     pub iot_bounds: HashMap<String, Vec<f64>>,
 
-    /// Campos prohibidos que NO deben aparecer en el input (PII, etc.)
-    #[serde(default)]
+    /// Campos prohibidos que NO deben aparecer en el input (PII, etc.).
     pub forbidden_fields: Vec<String>,
 
-    /// Si true, el usuario debe dar consentimiento antes de la inferencia
-    #[serde(default)]
+    /// Si true, el usuario debe dar consentimiento antes de la inferencia.
     pub consent_required: bool,
 }
 
@@ -141,7 +137,7 @@ mod tests {
     fn test_iot_bound_parsing() {
         let mut bounds = HashMap::new();
         bounds.insert("app_open_count_30d".to_string(), vec![0.0, 365.0]);
-        
+
         let contract = InferenceContract {
             version: 1,
             best_threshold: 0.33,
@@ -175,7 +171,7 @@ mod tests {
 
         let bound = contract.iot_bound("app_open_count_30d");
         assert_eq!(bound, Some((0.0, 365.0)));
-        
+
         let missing = contract.iot_bound("nonexistent");
         assert_eq!(missing, None);
     }
