@@ -155,6 +155,9 @@ SYNTHETIC_IOT_PARAMS = {
 # ============================================================
 PARITY_SAMPLE_SIZE = 100
 PARITY_TOLERANCE   = 1e-4
+# Piso de sensibilidad del golden sensible: p(1-p) >= 0.15 <=> p en [0.1838, 0.8162].
+# 60% del maximo teorico (0.25). El fixture lo declara; Rust lo lee del fixture.
+SENSITIVITY_FLOOR  = 0.15
 
 
 # ============================================================

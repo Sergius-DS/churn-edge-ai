@@ -56,6 +56,7 @@ def main() -> int:
         ("integridad",   "edge/inference_contract_edge_iot.json", exp["contract_sha256"],      "export.contract"),
         ("integridad",   "edge/parity_sample_edge_iot.json",      exp["parity_sample_sha256"], "export.parity_sample"),
         ("integridad",   "edge/raw_parity_case_iot.json",         exp["raw_parity_sha256"],    "export.raw_parity"),
+        ("integridad",   "edge/raw_parity_case_iot_sensitive.json", exp["raw_parity_sensitive_sha256"], "export.raw_parity_sensitive"),
         ("integridad",   "edge/metrics_edge_iot.json",            exp["metrics_sha256"],       "export.metrics"),
     ]
 

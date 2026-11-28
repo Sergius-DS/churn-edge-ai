@@ -1,5 +1,8 @@
 {
   "best_round": 200,
+  "best_round_at_cap": true,
+  "cv_num_boost_round_cap": 200,
+  "early_stopping_caveat": "early_stopping_rounds=10 es estructuralmente inerte sobre esta curva: el CV post-SMOTE es monotono, el contador se resetea en cada iteracion y el unico terminator es num_boost_round.",
   "best_auc_cv": 0.9981071874755816,
   "cv_caveat": "CV sobre datos post-SMOTE: AUC de validación optimista. El número publicable es test_auc.",
   "test_auc": 0.995073882553994,
